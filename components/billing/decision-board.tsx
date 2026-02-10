@@ -11,7 +11,19 @@ import { toast } from 'sonner';
 
 interface BillingDecisionBoardProps {
   initialData: PendingBillingDecision[];
+  /** 已裁決紀錄（來自 decided_billing_decisions_summary），用於裁決後分頁與總表 */
+  initialDecidedData?: PendingBillingDecision[];
   taskOptions: ClaimableTask[];
+}
+
+/** 以 time_record_id 去重，避免 view/API 回傳重複列時在切換總筆數/待裁決時堆疊 */
+function dedupePendingById(list: PendingBillingDecision[]): PendingBillingDecision[] {
+  const seen = new Set<string>();
+  return list.filter((row) => {
+    if (seen.has(row.time_record_id)) return false;
+    seen.add(row.time_record_id);
+    return true;
+  });
 }
 
 /**
@@ -20,14 +32,26 @@ interface BillingDecisionBoardProps {
  */
 export function BillingDecisionBoard({
   initialData,
+  initialDecidedData = [],
   taskOptions,
 }: BillingDecisionBoardProps) {
   const router = useRouter();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [data, setData] = useState(initialData);
+  const [data, setData] = useState(() => dedupePendingById(initialData));
+  const [decidedData, setDecidedData] = useState(() =>
+    dedupePendingById(initialDecidedData)
+  );
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [viewMode, setViewMode] = useState<'pool' | 'all'>('pool');
+  /** 裁決前＝可裁決 | 裁決後＝可取消裁決 | 總表＝純顯示 */
+  const [viewMode, setViewMode] = useState<'before' | 'after' | 'summary'>('before');
+
+  useEffect(() => {
+    setData(dedupePendingById(initialData));
+  }, [initialData]);
+  useEffect(() => {
+    setDecidedData(dedupePendingById(initialDecidedData));
+  }, [initialDecidedData]);
 
   const taskLabelById = useMemo(() => {
     const map = new Map<string, string>();
@@ -38,24 +62,36 @@ export function BillingDecisionBoard({
     return map;
   }, [taskOptions]);
 
-  const poolData = useMemo(
-    () => data.filter((item) => !item.task_id),
+  const beforeData = useMemo(
+    () => data.filter((item) => !item.has_decision),
     [data]
   );
+  const afterData = useMemo(() => decidedData, [decidedData]);
+  const summaryData = useMemo(() => {
+    const byId = new Map<string, PendingBillingDecision>();
+    data.forEach((r) => byId.set(r.time_record_id, r));
+    decidedData.forEach((r) => byId.set(r.time_record_id, r));
+    return Array.from(byId.values()).sort((a, b) => {
+      const d = (b.record_date || '').localeCompare(a.record_date || '');
+      if (d !== 0) return d;
+      return (b.check_in_time || '').localeCompare(a.check_in_time || '');
+    });
+  }, [data, decidedData]);
+
   const visibleData = useMemo(() => {
-    return viewMode === 'pool' ? poolData : data;
-  }, [viewMode, poolData, data]);
+    if (viewMode === 'before') return beforeData;
+    if (viewMode === 'after') return afterData;
+    return summaryData;
+  }, [viewMode, beforeData, afterData, summaryData]);
 
-  // 移除自動切換邏輯，允許用戶查看公海池的空狀態
-  // useEffect(() => {
-  //   if (viewMode === 'pool' && poolData.length === 0) {
-  //     setViewMode('all');
-  //   }
-  // }, [viewMode, poolData.length]);
+  const canSelect = viewMode !== 'summary';
+  const canConfirmDecision = viewMode === 'before';
+  const canCancelDecision = viewMode === 'after';
 
-  // 計算選中項目的總時數與建議 MD
+  // 計算選中項目的總時數與建議 MD（裁決前用 visibleData 的選取，裁決後用 afterData）
   const selectedSummary = useMemo(() => {
-    const selected = data.filter((item) => selectedIds.has(item.time_record_id));
+    const source = viewMode === 'before' ? data : viewMode === 'after' ? decidedData : [];
+    const selected = source.filter((item) => selectedIds.has(item.time_record_id));
     const totalHours = selected.reduce((sum, item) => sum + (item.hours_worked || 0), 0);
     const recommendedMd =
       totalHours >= 7.5 ? 1.0 : totalHours >= 3.5 ? 0.5 : 0;
@@ -67,7 +103,7 @@ export function BillingDecisionBoard({
       hasConflict,
       count: selected.length,
     };
-  }, [selectedIds, data]);
+  }, [selectedIds, viewMode, data, decidedData]);
 
   // 處理勾選狀態
   const handleToggleSelect = (timeRecordId: string) => {
@@ -80,8 +116,9 @@ export function BillingDecisionBoard({
     setSelectedIds(newSelected);
   };
 
-  // 處理全選/取消全選
+  // 處理全選/取消全選（總表模式不選）
   const handleToggleSelectAll = () => {
+    if (!canSelect) return;
     if (selectedIds.size === visibleData.length) {
       setSelectedIds(new Set());
     } else {
@@ -89,18 +126,22 @@ export function BillingDecisionBoard({
     }
   };
 
-  // 重新整理資料
+  // 重新整理資料（同時拉取待裁決與已裁決）
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
       router.refresh();
-      // 重新取得資料
-      const response = await fetch('/api/billing/pending', { cache: 'no-store' });
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success) {
-          setData(result.data || []);
-        }
+      const [pendingRes, decidedRes] = await Promise.all([
+        fetch('/api/billing/pending', { cache: 'no-store' }),
+        fetch('/api/billing/decided', { cache: 'no-store' }),
+      ]);
+      if (pendingRes.ok) {
+        const r = await pendingRes.json();
+        if (r.success) setData(dedupePendingById(r.data || []));
+      }
+      if (decidedRes.ok) {
+        const r = await decidedRes.json();
+        if (r.success) setDecidedData(dedupePendingById(r.data || []));
       }
     } catch (error) {
       toast.error('重新整理失敗');
@@ -151,7 +192,13 @@ export function BillingDecisionBoard({
         toast.error(result.error || '裁決失敗');
       }
     } catch (error) {
-      toast.error('裁決時發生錯誤');
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof (error as { message?: string })?.message === 'string'
+            ? (error as { message: string }).message
+            : '裁決時發生錯誤';
+      toast.error(message);
       console.error(error);
     }
   };
@@ -162,40 +209,57 @@ export function BillingDecisionBoard({
         {/* 操作列 */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="text-sm text-muted-foreground">
-            已選擇 {selectedIds.size} 筆紀錄
-            {selectedIds.size > 0 && (
-              <span className="ml-2">
-                • 總時數: {selectedSummary.totalHours.toFixed(2)} 小時
-                • 建議 MD: {selectedSummary.recommendedMd}
-              </span>
+            {canSelect ? (
+              <>
+                已選擇 {selectedIds.size} 筆紀錄
+                {selectedIds.size > 0 && canConfirmDecision && (
+                  <span className="ml-2">
+                    • 總時數: {selectedSummary.totalHours.toFixed(2)} 小時
+                    • 建議 MD: {selectedSummary.recommendedMd}
+                  </span>
+                )}
+              </>
+            ) : (
+              '總表為唯讀，不支援勾選與裁決操作'
             )}
           </div>
           <div className="flex flex-wrap gap-2">
             <Button
-              variant={viewMode === 'pool' ? 'default' : 'outline'}
+              variant={viewMode === 'before' ? 'default' : 'outline'}
               onClick={() => {
-                setViewMode('pool');
+                setViewMode('before');
                 setSelectedIds(new Set());
               }}
             >
-              公海池 ({poolData.length})
+              裁決前 ({beforeData.length})
             </Button>
             <Button
-              variant={viewMode === 'all' ? 'default' : 'outline'}
+              variant={viewMode === 'after' ? 'default' : 'outline'}
               onClick={() => {
-                setViewMode('all');
+                setViewMode('after');
                 setSelectedIds(new Set());
               }}
             >
-              全部待裁決 ({data.length})
+              裁決後 ({afterData.length})
             </Button>
             <Button
-              variant="outline"
-              onClick={handleToggleSelectAll}
-              disabled={visibleData.length === 0}
+              variant={viewMode === 'summary' ? 'default' : 'outline'}
+              onClick={() => {
+                setViewMode('summary');
+                setSelectedIds(new Set());
+              }}
             >
-              {selectedIds.size === visibleData.length ? '取消全選' : '全選'}
+              總表 ({summaryData.length})
             </Button>
+            {canSelect && (
+              <Button
+                variant="outline"
+                onClick={handleToggleSelectAll}
+                disabled={visibleData.length === 0}
+              >
+                {selectedIds.size === visibleData.length ? '取消全選' : '全選'}
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={handleRefresh}
@@ -203,12 +267,23 @@ export function BillingDecisionBoard({
             >
               {isRefreshing ? '重新整理中...' : '重新整理'}
             </Button>
-            <Button
-              onClick={() => setIsDialogOpen(true)}
-              disabled={selectedIds.size === 0}
-            >
-              確認裁決
-            </Button>
+            {canConfirmDecision && (
+              <Button
+                onClick={() => setIsDialogOpen(true)}
+                disabled={selectedIds.size === 0}
+              >
+                確認裁決
+              </Button>
+            )}
+            {canCancelDecision && (
+              <Button
+                variant="outline"
+                onClick={() => toast.info('取消裁決功能開發中')}
+                disabled={selectedIds.size === 0}
+              >
+                取消裁決
+              </Button>
+            )}
           </div>
         </div>
 
@@ -220,6 +295,7 @@ export function BillingDecisionBoard({
           onToggleSelectAll={handleToggleSelectAll}
           taskLabelById={taskLabelById}
           viewMode={viewMode}
+          canSelect={canSelect}
         />
       </div>
 

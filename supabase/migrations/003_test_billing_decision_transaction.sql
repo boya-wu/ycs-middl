@@ -3,6 +3,10 @@
 -- 驗證覆蓋裁決邏輯是否正確運作
 -- ============================================
 
+-- 確保 staff_profiles.user_id 可為 NULL（若 010 尚未套用），否則下方 INSERT 會失敗
+ALTER TABLE staff_profiles
+  ALTER COLUMN user_id DROP NOT NULL;
+
 -- 清理測試資料（如果存在）
 DELETE FROM billing_decision_records WHERE billing_decision_id IN (
     SELECT id FROM billing_decisions WHERE reason LIKE '測試%'

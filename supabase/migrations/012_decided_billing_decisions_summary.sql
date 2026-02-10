@@ -1,6 +1,6 @@
--- 擴充待裁決 View：加入廠商姓名、廠商編號、部門名稱（預留）、工作區域代號，供裁決看板顯示
--- 所屬廠區 = factory_location，實際入廠/出廠 = check_in_time/check_out_time 已有
-CREATE OR REPLACE VIEW pending_billing_decisions_summary AS
+-- 已裁決時數紀錄彙整：用於裁決看板「裁決後」分頁
+-- 條件：有 active 的 billing_decision（不論 is_billable），與 pending 視圖互斥
+CREATE OR REPLACE VIEW decided_billing_decisions_summary AS
 SELECT
     tr.id AS time_record_id,
     tr.staff_id,
@@ -16,7 +16,7 @@ SELECT
     bd.is_conflict_resolved,
     bd.is_billable,
     bd.final_md,
-    CASE WHEN bd.id IS NOT NULL THEN TRUE ELSE FALSE END AS has_decision,
+    TRUE AS has_decision,
     (
         SELECT COALESCE(SUM(tr2.hours_worked), 0)
         FROM billing_decision_records bdr2
@@ -28,8 +28,7 @@ SELECT
     NULL::TEXT AS department_name,
     tr.factory_location AS work_area_code
 FROM time_records tr
-LEFT JOIN billing_decision_records bdr ON tr.id = bdr.time_record_id AND bdr.is_active = TRUE
-LEFT JOIN billing_decisions bd ON bdr.billing_decision_id = bd.id AND bd.is_active = TRUE
+JOIN billing_decision_records bdr ON tr.id = bdr.time_record_id AND bdr.is_active = TRUE
+JOIN billing_decisions bd ON bdr.billing_decision_id = bd.id AND bd.is_active = TRUE
 LEFT JOIN staff_profiles sp ON tr.staff_id = sp.id
-WHERE tr.check_out_time IS NOT NULL
-  AND (bd.id IS NULL OR bd.is_billable = FALSE);
+WHERE tr.check_out_time IS NOT NULL;

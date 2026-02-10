@@ -67,12 +67,65 @@ export async function getPendingBillingDecisions(): Promise<{
       throw new Error(`查詢待裁決紀錄失敗: ${error.message}`);
     }
 
+    // View 可能因同一 time_record 多筆 bdr（歷史）回傳重複列，以 time_record_id 去重保留第一筆（已依日期/時間排序）
+    const list = (data || []) as PendingBillingDecision[];
+    const seen = new Set<string>();
+    const deduped = list.filter((row) => {
+      if (seen.has(row.time_record_id)) return false;
+      seen.add(row.time_record_id);
+      return true;
+    });
+
     return {
       success: true,
-      data: (data || []) as PendingBillingDecision[],
+      data: deduped,
     };
   } catch (error) {
     console.error('getPendingBillingDecisions 錯誤:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : '未知錯誤',
+    };
+  }
+}
+
+/**
+ * 查詢已裁決時數紀錄列表（用於裁決看板「裁決後」分頁）
+ * 資料來源：decided_billing_decisions_summary View（有 active 裁決且已出場的紀錄，含 is_billable = TRUE）
+ */
+export async function getDecidedBillingDecisions(): Promise<{
+  success: boolean;
+  data?: PendingBillingDecision[];
+  error?: string;
+}> {
+  const supabase = createServerSupabaseClient();
+
+  try {
+    const { data, error } = await supabase
+      .from('decided_billing_decisions_summary')
+      .select('*')
+      .order('record_date', { ascending: false })
+      .order('check_in_time', { ascending: false })
+      .range(0, 1999);
+
+    if (error) {
+      throw new Error(`查詢已裁決紀錄失敗: ${error.message}`);
+    }
+
+    const list = (data || []) as PendingBillingDecision[];
+    const seen = new Set<string>();
+    const deduped = list.filter((row) => {
+      if (seen.has(row.time_record_id)) return false;
+      seen.add(row.time_record_id);
+      return true;
+    });
+
+    return {
+      success: true,
+      data: deduped,
+    };
+  } catch (error) {
+    console.error('getDecidedBillingDecisions 錯誤:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : '未知錯誤',

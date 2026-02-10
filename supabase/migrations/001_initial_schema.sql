@@ -3,14 +3,13 @@
 -- 嚴格遵循裁決層邏輯與 MD 判定規則
 -- ============================================
 
--- 啟用必要的擴展
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- 使用內建 gen_random_uuid()（PG13+），不依賴 uuid-ossp，避免本地 extension schema 問題
 
 -- ============================================
 -- 1. 業務使用者資料表 (staff_profiles)
 -- ============================================
 CREATE TABLE staff_profiles (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     email TEXT NOT NULL,
@@ -28,7 +27,7 @@ CREATE INDEX idx_staff_profiles_email ON staff_profiles(email);
 -- 2. 專案表 (projects - PY)
 -- ============================================
 CREATE TABLE projects (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code TEXT NOT NULL UNIQUE, -- PY 代碼
     name TEXT NOT NULL,
     description TEXT,
@@ -45,7 +44,7 @@ CREATE INDEX idx_projects_status ON projects(status);
 -- 3. 任務表 (tasks - SR)
 -- ============================================
 CREATE TABLE tasks (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     code TEXT NOT NULL, -- SR 代碼
     name TEXT NOT NULL,
@@ -67,7 +66,7 @@ CREATE INDEX idx_tasks_status ON tasks(status);
 -- 支援同一人、同一天、多筆不同廠區紀錄，允許重複進出
 -- ============================================
 CREATE TABLE time_records (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     staff_id UUID NOT NULL REFERENCES staff_profiles(id) ON DELETE CASCADE,
     task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
     record_date DATE NOT NULL, -- 紀錄日期
@@ -94,7 +93,7 @@ CREATE INDEX idx_time_records_check_out ON time_records(check_out_time) WHERE ch
 -- 數據血統：不直接關聯 time_record，所有連結透過 billing_decision_records
 -- ============================================
 CREATE TABLE billing_decisions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     decision_type TEXT NOT NULL, -- 'auto_4h_1md', 'auto_under_4h_0.5md', 'manual_override_1md', 'manual_override_0.5md', 'conflict_pending', 'conflict_resolved', 'merged_records'
     is_forced_md BOOLEAN NOT NULL DEFAULT FALSE, -- 是否為人工強制 1.0 MD
     recommended_md DECIMAL(3, 1), -- 系統建議的 MD 值（0.5 或 1.0）
@@ -128,7 +127,7 @@ CREATE INDEX idx_billing_decisions_active ON billing_decisions(is_active) WHERE 
 -- 正規化合併邏輯：支援一筆裁決對應多筆時數紀錄（N:1）
 -- ============================================
 CREATE TABLE billing_decision_records (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     billing_decision_id UUID NOT NULL REFERENCES billing_decisions(id) ON DELETE CASCADE,
     time_record_id UUID NOT NULL REFERENCES time_records(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -147,7 +146,7 @@ CREATE INDEX idx_billing_decision_records_time_record ON billing_decision_record
 -- 費率管理層：年度費率必須來自此表，禁止手動輸入無來源單價
 -- ============================================
 CREATE TABLE project_rates (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     year INTEGER NOT NULL, -- 年度（如 2024）
     standard_rate DECIMAL(10, 2) NOT NULL, -- 標準費率
@@ -167,7 +166,7 @@ CREATE INDEX idx_project_rates_year ON project_rates(year);
 -- 費率管理：單價必須關聯至 project_rates
 -- ============================================
 CREATE TABLE final_billings (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     billing_decision_id UUID NOT NULL REFERENCES billing_decisions(id) ON DELETE RESTRICT, -- 強制關聯，禁止刪除
     project_rate_id UUID NOT NULL REFERENCES project_rates(id) ON DELETE RESTRICT, -- 費率來源（強制關聯）
     billing_date DATE NOT NULL, -- 請款日期
@@ -298,7 +297,7 @@ SELECT
         WHERE bdr2.billing_decision_id = bd.id
     ) as merged_total_hours
 FROM time_records tr
-LEFT JOIN billing_decision_records bdr ON tr.id = bdr.time_record_id
+LEFT JOIN billing_decision_records bdr ON tr.id = bdr.time_record_id AND bdr.is_active = TRUE
 LEFT JOIN billing_decisions bd ON bdr.billing_decision_id = bd.id AND bd.is_active = TRUE
 WHERE tr.check_out_time IS NOT NULL -- 已完成出場
     AND (bd.id IS NULL OR bd.is_billable = FALSE); -- 尚未裁決或不可請款

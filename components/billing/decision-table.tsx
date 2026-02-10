@@ -33,7 +33,8 @@ interface DecisionTableProps {
   onToggleSelect: (timeRecordId: string) => void;
   onToggleSelectAll?: () => void;
   taskLabelById?: Map<string, string>;
-  viewMode?: 'pool' | 'all';
+  viewMode?: 'before' | 'after' | 'summary';
+  canSelect?: boolean;
 }
 
 /**
@@ -65,16 +66,18 @@ export function DecisionTable({
   onToggleSelect,
   onToggleSelectAll,
   taskLabelById,
-  viewMode = 'all',
+  viewMode = 'before',
+  canSelect = true,
 }: DecisionTableProps) {
   if (data.length === 0) {
-    const emptyMessage =
-      viewMode === 'pool'
-        ? '公海池目前沒有未認領的工時紀錄（所有工時都已認領至專案任務）'
-        : '目前沒有待裁決的時數紀錄';
+    const emptyMessages: Record<string, string> = {
+      before: '目前沒有可裁決的時數紀錄',
+      after: '目前沒有已裁決（可取消）的紀錄',
+      summary: '目前沒有進廠紀錄',
+    };
     return (
       <div className="rounded-lg border p-8 text-center text-muted-foreground">
-        {emptyMessage}
+        {emptyMessages[viewMode] ?? '目前沒有資料'}
       </div>
     );
   }
@@ -84,12 +87,14 @@ export function DecisionTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-12">
-              <Checkbox
-                checked={selectedIds.size === data.length && data.length > 0}
-                onChange={() => onToggleSelectAll?.()}
-              />
-            </TableHead>
+            {canSelect && (
+              <TableHead className="w-12">
+                <Checkbox
+                  checked={selectedIds.size === data.length && data.length > 0}
+                  onChange={() => onToggleSelectAll?.()}
+                />
+              </TableHead>
+            )}
             <TableHead>狀態</TableHead>
             <TableHead>所屬廠區</TableHead>
             <TableHead>廠商編號</TableHead>
@@ -115,12 +120,14 @@ export function DecisionTable({
 
             return (
               <TableRow key={item.time_record_id}>
-                <TableCell>
-                  <Checkbox
-                    checked={isSelected}
-                    onCheckedChange={() => onToggleSelect(item.time_record_id)}
-                  />
-                </TableCell>
+                {canSelect && (
+                  <TableCell>
+                    <Checkbox
+                      checked={isSelected}
+                      onCheckedChange={() => onToggleSelect(item.time_record_id)}
+                    />
+                  </TableCell>
+                )}
                 <TableCell>
                   <Badge
                     variant={

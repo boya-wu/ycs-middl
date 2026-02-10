@@ -1,4 +1,8 @@
-import { getClaimableTasks, getPendingBillingDecisions } from '@/actions/billing/queries';
+import {
+  getClaimableTasks,
+  getDecidedBillingDecisions,
+  getPendingBillingDecisions,
+} from '@/actions/billing/queries';
 import { BillingDecisionBoard } from '@/components/billing/decision-board';
 
 /** 避免快取導致裁決看板顯示舊/空資料 */
@@ -6,21 +10,22 @@ export const dynamic = 'force-dynamic';
 
 /**
  * 請款裁決看板頁面
- * PM 使用的請款裁決介面，顯示待裁決的時數紀錄並允許進行裁決
+ * PM 使用的請款裁決介面，顯示待裁決／已裁決的時數紀錄並允許進行裁決或取消裁決
  */
 export default async function BillingDashboardPage() {
-  const [result, taskResult] = await Promise.all([
+  const [pendingResult, decidedResult, taskResult] = await Promise.all([
     getPendingBillingDecisions(),
+    getDecidedBillingDecisions(),
     getClaimableTasks(),
   ]);
 
-  if (!result.success || !taskResult.success) {
+  if (!pendingResult.success || !taskResult.success) {
     return (
       <div className="container mx-auto p-6">
         <div className="rounded-lg border border-red-200 bg-red-50 p-4">
           <h2 className="text-lg font-semibold text-red-800">載入錯誤</h2>
           <p className="text-red-600">
-            {result.error || taskResult.error || '載入失敗'}
+            {pendingResult.error || taskResult.error || '載入失敗'}
           </p>
         </div>
       </div>
@@ -36,7 +41,8 @@ export default async function BillingDashboardPage() {
         </p>
       </div>
       <BillingDecisionBoard
-        initialData={result.data || []}
+        initialData={pendingResult.data || []}
+        initialDecidedData={decidedResult.success ? decidedResult.data || [] : []}
         taskOptions={taskResult.data || []}
       />
     </div>

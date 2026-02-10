@@ -12,7 +12,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- 1. 業務使用者資料表 (staff_profiles)
 CREATE TABLE staff_profiles (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     email TEXT NOT NULL,
@@ -39,7 +39,7 @@ GRANT SELECT, INSERT, UPDATE ON public.staff_profiles TO service_role;
 
 -- 2. 專案表 (projects - PY)
 CREATE TABLE projects (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     description TEXT,
@@ -52,7 +52,7 @@ CREATE INDEX idx_projects_status ON projects(status);
 
 -- 3. 任務表 (tasks - SR)
 CREATE TABLE tasks (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     code TEXT NOT NULL,
     name TEXT NOT NULL,
@@ -68,7 +68,7 @@ CREATE INDEX idx_tasks_status ON tasks(status);
 
 -- 4. 時數紀錄表 (time_records)
 CREATE TABLE time_records (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     staff_id UUID NOT NULL REFERENCES staff_profiles(id) ON DELETE CASCADE,
     task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
     record_date DATE NOT NULL,
@@ -89,7 +89,7 @@ ON time_records (staff_id, record_date, factory_location, check_in_time);
 
 -- 5. 計費裁決表 (billing_decisions)
 CREATE TABLE billing_decisions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     decision_type TEXT NOT NULL,
     is_forced_md BOOLEAN NOT NULL DEFAULT FALSE,
     recommended_md DECIMAL(3, 1),
@@ -114,7 +114,7 @@ CREATE INDEX idx_billing_decisions_active ON billing_decisions(is_active) WHERE 
 
 -- 6. 計費裁決關聯表 (billing_decision_records)
 CREATE TABLE billing_decision_records (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     billing_decision_id UUID NOT NULL REFERENCES billing_decisions(id) ON DELETE CASCADE,
     time_record_id UUID NOT NULL REFERENCES time_records(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -125,7 +125,7 @@ CREATE INDEX idx_billing_decision_records_time_record ON billing_decision_record
 
 -- 7. 專案費率表 (project_rates)
 CREATE TABLE project_rates (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     year INTEGER NOT NULL,
     standard_rate DECIMAL(10, 2) NOT NULL,
@@ -139,7 +139,7 @@ CREATE INDEX idx_project_rates_year ON project_rates(year);
 
 -- 8. 最終請款表 (final_billings)
 CREATE TABLE final_billings (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     billing_decision_id UUID NOT NULL REFERENCES billing_decisions(id) ON DELETE RESTRICT,
     project_rate_id UUID NOT NULL REFERENCES project_rates(id) ON DELETE RESTRICT,
     billing_date DATE NOT NULL,
@@ -232,11 +232,45 @@ SELECT
     NULL::TEXT AS department_name,
     tr.factory_location AS work_area_code
 FROM time_records tr
-LEFT JOIN billing_decision_records bdr ON tr.id = bdr.time_record_id
+LEFT JOIN billing_decision_records bdr ON tr.id = bdr.time_record_id AND bdr.is_active = TRUE
 LEFT JOIN billing_decisions bd ON bdr.billing_decision_id = bd.id AND bd.is_active = TRUE
 LEFT JOIN staff_profiles sp ON tr.staff_id = sp.id
 WHERE tr.check_out_time IS NOT NULL
   AND (bd.id IS NULL OR bd.is_billable = FALSE);
+
+-- 視圖：已裁決時數紀錄彙整（裁決看板「裁決後」分頁用，與 pending 互斥）
+CREATE OR REPLACE VIEW decided_billing_decisions_summary AS
+SELECT
+    tr.id AS time_record_id,
+    tr.staff_id,
+    tr.task_id,
+    tr.record_date,
+    tr.factory_location,
+    tr.hours_worked,
+    tr.check_in_time,
+    tr.check_out_time,
+    bd.id AS billing_decision_id,
+    bd.decision_type,
+    bd.has_conflict,
+    bd.is_conflict_resolved,
+    bd.is_billable,
+    bd.final_md,
+    TRUE AS has_decision,
+    (
+        SELECT COALESCE(SUM(tr2.hours_worked), 0)
+        FROM billing_decision_records bdr2
+        JOIN time_records tr2 ON bdr2.time_record_id = tr2.id
+        WHERE bdr2.billing_decision_id = bd.id
+    ) AS merged_total_hours,
+    sp.name AS staff_name,
+    sp.employee_no AS staff_employee_no,
+    NULL::TEXT AS department_name,
+    tr.factory_location AS work_area_code
+FROM time_records tr
+JOIN billing_decision_records bdr ON tr.id = bdr.time_record_id AND bdr.is_active = TRUE
+JOIN billing_decisions bd ON bdr.billing_decision_id = bd.id AND bd.is_active = TRUE
+LEFT JOIN staff_profiles sp ON tr.staff_id = sp.id
+WHERE tr.check_out_time IS NOT NULL;
 
 
 -- ============================================
