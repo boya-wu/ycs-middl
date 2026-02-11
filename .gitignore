@@ -33,6 +33,10 @@ yarn-error.log*
 # Test
 coverage
 
+# Data / binary (避免 repo 肥大，Excel 等放本地或另存)
+data/raw/*.xlsx
+data/raw/*.xls
+
 # Accidental output in repo root (e.g. script redirects)
 deactivated_count
 records_created
