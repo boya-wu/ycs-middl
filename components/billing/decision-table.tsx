@@ -40,8 +40,8 @@ interface DecisionTableProps {
 /**
  * 判斷燈號顏色
  * 🔴 紅燈：has_conflict === true
- * 🟡 黃燈：has_conflict === false && hours_worked < 4
- * 🟢 綠燈：has_conflict === false && hours_worked >= 4
+ * 🟡 黃燈：has_conflict === false && hours_worked < 2
+ * 🟢 綠燈：has_conflict === false && hours_worked >= 2
  */
 function getStatusLight(item: PendingBillingDecision): {
   color: 'red' | 'yellow' | 'green';
@@ -50,7 +50,7 @@ function getStatusLight(item: PendingBillingDecision): {
   if (item.has_conflict) {
     return { color: 'red', label: '衝突' };
   }
-  if ((item.hours_worked || 0) < 4) {
+  if ((item.hours_worked || 0) < 2) {
     return { color: 'yellow', label: '時數不足' };
   }
   return { color: 'green', label: '正常' };
@@ -107,6 +107,9 @@ export function DecisionTable({
             <TableHead>任務</TableHead>
             <TableHead>時數</TableHead>
             <TableHead>MD</TableHead>
+            {(viewMode === 'after' || viewMode === 'summary') && (
+              <TableHead>裁決原因</TableHead>
+            )}
             <TableHead>備註</TableHead>
           </TableRow>
         </TableHeader>
@@ -173,6 +176,11 @@ export function DecisionTable({
                 <TableCell>
                   {item.final_md !== null ? item.final_md.toFixed(1) : '-'}
                 </TableCell>
+                {(viewMode === 'after' || viewMode === 'summary') && (
+                  <TableCell className="max-w-[200px] truncate" title={item.reason ?? undefined}>
+                    {item.reason ?? '-'}
+                  </TableCell>
+                )}
                 <TableCell className="text-muted-foreground">
                   {item.has_conflict && '⚠️ 衝突'}
                   {item.has_decision && '✓ 已裁決'}

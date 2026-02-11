@@ -182,7 +182,7 @@ BEGIN
     RAISE NOTICE '  TR_002: % (2.0小時)', v_tr_002_id;
     RAISE NOTICE '  TR_003: % (1.0小時)', v_tr_003_id;
     RAISE NOTICE '總時數：4.5 小時';
-    RAISE NOTICE '建議 MD：1.0（>=4小時）';
+    RAISE NOTICE '建議 MD：1.0（>=2小時）';
     RAISE NOTICE '';
     RAISE NOTICE '下一步：';
     RAISE NOTICE '1. 進入 /dashboard/billing 看板';

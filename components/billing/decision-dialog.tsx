@@ -345,11 +345,11 @@ export function DecisionDialog({
             />
             <p className="text-xs text-muted-foreground">
               建議值：{selectedSummary.recommendedMd}（
-              {selectedSummary.totalHours >= 7.5
-                ? '≥7.5h → 1 MD'
-                : selectedSummary.totalHours >= 3.5
-                  ? '3.5~7h → 0.5 MD'
-                  : '<3.5h → 0 MD'}
+              {selectedSummary.totalHours >= 2
+                ? '≥2h → 1 MD'
+                : selectedSummary.totalHours > 0
+                  ? '0~2h → 0.5 MD'
+                  : '0h → 0 MD'}
               ）
             </p>
           </div>

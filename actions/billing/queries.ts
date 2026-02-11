@@ -21,6 +21,8 @@ export interface PendingBillingDecision {
   is_billable: boolean;
   final_md: number | null;
   has_decision: boolean;
+  /** 裁決原因（僅已裁決紀錄來自 decided_billing_decisions_summary 時有值） */
+  reason?: string | null;
   merged_total_hours: number | null;
   staff_name: string | null;
   staff_employee_no: string | null;

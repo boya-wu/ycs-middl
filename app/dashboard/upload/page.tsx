@@ -893,8 +893,9 @@ export default function UploadPage() {
         `匯入完成！成功: ${imported} 筆${skipMsg}${errors.length > 0 ? `，錯誤: ${errors.length} 筆` : ''}`
       );
 
-      // 導向 billing 看板
+      // 導向裁決看板並強制重取資料，避免 Router Cache 顯示舊（空）清單
       router.push('/dashboard/billing');
+      router.refresh();
     } catch (error) {
       console.error('匯入失敗:', error);
       toast.error('匯入失敗');

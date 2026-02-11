@@ -1,5 +1,6 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 /** 單筆匯入用 payload，task_id 匯入時一律不寫入（公海池） */
@@ -104,6 +105,8 @@ export async function importTimeRecords(
 
     const skippedDuplicates = toInsert.length - imported;
     const skipped = skippedNoCheckOut + skippedDuration + skippedDuplicates;
+
+    revalidatePath('/dashboard/billing');
 
     return {
       success: true,

@@ -48,6 +48,28 @@ export async function createBillingDecision(
       };
     }
 
+    const requestedIds = [...new Set(params.time_record_ids)];
+    if (requestedIds.length === 0) {
+      return { success: false, error: '請至少選擇一筆工時紀錄' };
+    }
+
+    // 步驟 0.5: 確認所選工時仍存在（避免 DELETE 後重傳、未重整頁面時送出舊 ID）
+    const { data: existingTimeRecords, error: existError } = await supabase
+      .from('time_records')
+      .select('id')
+      .in('id', requestedIds);
+
+    if (existError) {
+      throw new Error(`檢查工時紀錄時發生錯誤: ${existError.message}`);
+    }
+    const foundCount = (existingTimeRecords ?? []).length;
+    if (foundCount !== requestedIds.length) {
+      return {
+        success: false,
+        error: '所選工時已失效或部分不存在（例如資料已重新匯入）。請重新整理頁面後再選並裁決。',
+      };
+    }
+
     // 步驟 1: 檢查是否有現有的 active decision 關聯這些 time_record_ids
     // 透過 billing_decision_records 關聯表查詢，確保遵循數據血統原則
     const { data: existingRecords, error: checkError } = await supabase
