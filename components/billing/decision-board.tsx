@@ -53,6 +53,15 @@ export function BillingDecisionBoard({
     setDecidedData(dedupePendingById(initialDecidedData));
   }, [initialDecidedData]);
 
+  // 從其他分頁回到本頁（例如在 Supabase 後台清空 DB 後）自動重拉，避免畫面卡在舊資料
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') handleRefresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
+
   const taskLabelById = useMemo(() => {
     const map = new Map<string, string>();
     taskOptions.forEach((task) => {
