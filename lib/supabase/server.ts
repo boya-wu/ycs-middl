@@ -11,7 +11,13 @@ export function createServerSupabaseClient() {
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing Supabase environment variables');
+    const missing = [
+      !supabaseUrl && 'NEXT_PUBLIC_SUPABASE_URL',
+      !supabaseServiceKey && 'SUPABASE_SERVICE_ROLE_KEY',
+    ].filter(Boolean);
+    throw new Error(
+      `Missing Supabase env: ${missing.join(', ')}. 請在專案根目錄建立 .env.local 並重啟 dev server。`
+    );
   }
 
   return createClient(supabaseUrl, supabaseServiceKey, {
@@ -32,7 +38,13 @@ export async function createSupabaseServerClient() {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Missing Supabase environment variables');
+    const missing = [
+      !supabaseUrl && 'NEXT_PUBLIC_SUPABASE_URL',
+      !supabaseAnonKey && 'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+    ].filter(Boolean);
+    throw new Error(
+      `Missing Supabase env: ${missing.join(', ')}. 請在專案根目錄建立 .env.local 並重啟 dev server。`
+    );
   }
 
   return createServerClient(supabaseUrl, supabaseAnonKey, {
