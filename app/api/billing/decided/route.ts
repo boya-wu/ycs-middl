@@ -12,12 +12,19 @@ export async function GET() {
   if (!result.success) {
     return NextResponse.json(
       { success: false, error: result.error },
-      { status: 500 }
+      {
+        status: 500,
+        headers: { 'Cache-Control': 'no-store, must-revalidate' },
+      }
     );
   }
 
-  return NextResponse.json({
-    success: true,
-    data: result.data,
-  });
+  return NextResponse.json(
+    { success: true, data: result.data },
+    {
+      headers: {
+        'Cache-Control': 'no-store, must-revalidate',
+      },
+    }
+  );
 }

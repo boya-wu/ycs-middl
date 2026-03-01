@@ -1,3 +1,4 @@
+import { unstable_noStore } from 'next/cache';
 import {
   getClaimableTasks,
   getDecidedBillingDecisions,
@@ -13,6 +14,7 @@ export const dynamic = 'force-dynamic';
  * PM 使用的請款裁決介面，顯示待裁決／已裁決的時數紀錄並允許進行裁決或取消裁決
  */
 export default async function BillingDashboardPage() {
+  unstable_noStore();
   const [pendingResult, decidedResult, taskResult] = await Promise.all([
     getPendingBillingDecisions(),
     getDecidedBillingDecisions(),

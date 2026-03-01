@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ClaimableTask, PendingBillingDecision } from '@/actions/billing/queries';
 import { createBillingDecision } from '@/actions/billing/decisions';
@@ -52,15 +52,6 @@ export function BillingDecisionBoard({
   useEffect(() => {
     setDecidedData(dedupePendingById(initialDecidedData));
   }, [initialDecidedData]);
-
-  // 從其他分頁回到本頁（例如在 Supabase 後台清空 DB 後）自動重拉，避免畫面卡在舊資料
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') handleRefresh();
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
-  }, []);
 
   const taskLabelById = useMemo(() => {
     const map = new Map<string, string>();
@@ -135,8 +126,8 @@ export function BillingDecisionBoard({
     }
   };
 
-  // 重新整理資料（同時拉取待裁決與已裁決）
-  const handleRefresh = async () => {
+  // 重新整理資料（同時拉取待裁決與已裁決），用 useCallback 穩定參考供 visibility/pageshow 依賴
+  const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
     try {
       router.refresh();
@@ -157,7 +148,25 @@ export function BillingDecisionBoard({
     } finally {
       setIsRefreshing(false);
     }
-  };
+  }, [router]);
+
+  // 從其他分頁回到本頁（例如在 Supabase 後台清空 DB 後）自動重拉，避免畫面卡在舊資料
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') handleRefresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [handleRefresh]);
+
+  // 從 bfcache 還原時重拉資料，避免「回到上一頁」仍顯示舊狀態
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) handleRefresh();
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
+  }, [handleRefresh]);
 
   // 處理裁決確認
   const handleConfirmDecision = async (

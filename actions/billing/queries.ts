@@ -1,5 +1,6 @@
 'use server';
 
+import { unstable_noStore } from 'next/cache';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 /**
@@ -55,6 +56,7 @@ export async function getPendingBillingDecisions(): Promise<{
   data?: PendingBillingDecision[];
   error?: string;
 }> {
+  unstable_noStore();
   const supabase = createServerSupabaseClient();
 
   try {
@@ -100,6 +102,7 @@ export async function getDecidedBillingDecisions(): Promise<{
   data?: PendingBillingDecision[];
   error?: string;
 }> {
+  unstable_noStore();
   const supabase = createServerSupabaseClient();
 
   try {
@@ -143,6 +146,7 @@ export async function getClaimableTasks(): Promise<{
   data?: ClaimableTask[];
   error?: string;
 }> {
+  unstable_noStore();
   const supabase = createServerSupabaseClient();
 
   try {
