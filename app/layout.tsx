@@ -3,8 +3,8 @@ import { Toaster } from 'sonner';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'YCS - 請款裁決系統',
-  description: 'YCS 請款裁決管理系統',
+  title: 'YCS - 內部中介層',
+  description: '公司內部中介層與工具平台',
 };
 
 export default function RootLayout({
