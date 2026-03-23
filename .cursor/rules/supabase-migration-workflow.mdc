@@ -1,0 +1,27 @@
+---
+description: Enforce Supabase migration-first workflow for schema changes
+alwaysApply: true
+---
+
+# Supabase Migration-First Workflow (Professional Edition)
+
+當涉及資料庫結構變更（Table, Column, View, RLS, Functions）時，必須嚴格執行以下流程：
+
+### 1. 變更發起 (Migration First)
+- 禁止建議手動透過 Web UI 修改。
+- 必須引導使用者執行命令：`npx supabase migration new <meaningful_name>`。
+- SQL 檔案必須放置於 `supabase/migrations/` 下。
+
+### 2. 唯一真相 (SSOT)
+- 始終以 `supabase/migrations/` 的歷史檔案作為結構定義的權威來源。
+- `consolidated_schema.sql` 僅視為 Snapshot，不得手動編輯。若發生衝突，以 migration 為準。
+
+### 3. 同步與驗證 (Workflow)
+- 完成 SQL 撰寫後，應主動提醒使用者執行：
+  1. `npx supabase db push` (推送到遠端環境) 或
+  2. `npx supabase db reset` (重整本地環境以驗證 SQL 正確性)
+- **重要：** 若專案包含 TypeScript，請提醒執行 `npx supabase gen types typescript --local > types/supabase.ts` 以保持型別同步。
+
+### 4. 變更追蹤
+- Migration 命名規範：`YYYYMMDDHHMMSS_action_target` (例如：`202603231615_add_phone_to_users`)。
+- 確保 SQL 代碼包含必要的註解，特別是涉及 RLS (Row Level Security) 的變更。
