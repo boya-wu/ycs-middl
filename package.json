@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "schema:consolidated": "bash scripts/dump-consolidated.sh",
+    "schema:push": "npx supabase db push"
   },
   "dependencies": {
     "@radix-ui/react-popover": "^1.1.15",
@@ -25,7 +27,7 @@
   "devDependencies": {
     "@types/react": "19.2.9",
     "@types/xlsx": "^0.0.35",
-    "supabase": "^2.76.6",
+    "supabase": "^2.83.0",
     "typescript": "5.9.3"
   }
 }

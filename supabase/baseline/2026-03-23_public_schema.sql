@@ -1,4 +1,5 @@
--- YCS Supabase public baseline: 2026-03-23
+-- YCS Supabase public baseline: 2026-03-23（歷史快照，精簡版）
+-- Deprecated for parity checks: 請改用 2026-03-24_public_full.sql（含 RLS／Function／Trigger）或 scripts/dump-public-baseline.sh 自遠端匯出。
 -- Includes: Tables, Views, Indexes, Grants (public schema only).
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;

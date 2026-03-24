@@ -130,6 +130,7 @@ CREATE TABLE billing_decision_records (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     billing_decision_id UUID NOT NULL REFERENCES billing_decisions(id) ON DELETE CASCADE,
     time_record_id UUID NOT NULL REFERENCES time_records(id) ON DELETE CASCADE,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE, -- 與所屬 billing_decisions.is_active 同步（觸發器見 migration 004）
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(billing_decision_id, time_record_id)
 );
@@ -138,8 +139,7 @@ CREATE TABLE billing_decision_records (
 CREATE INDEX idx_billing_decision_records_decision ON billing_decision_records(billing_decision_id);
 CREATE INDEX idx_billing_decision_records_time_record ON billing_decision_records(time_record_id);
 
--- 決策唯一性保證：每一筆 time_record_id 在 is_active = true 的決策中只能被關聯一次
--- 注意：此約束需透過應用層邏輯或觸發器實現，因為需要檢查關聯的 billing_decision.is_active 狀態
+-- 決策唯一性保證：每一筆 time_record_id 在 is_active = true 時僅能有一筆關聯（partial unique index 與同步觸發器於 migration 004）
 
 -- ============================================
 -- 7. 專案費率表 (project_rates)

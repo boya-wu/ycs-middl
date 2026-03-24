@@ -1,0 +1,26 @@
+# 於 PR 變更 migrations 時驗證本地 db reset 可套用全鏈（需 Docker）。
+name: Supabase migrations smoke (db reset)
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/config.toml'
+  workflow_dispatch:
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start stack and apply migrations
+        run: |
+          supabase start
+          supabase db reset --yes

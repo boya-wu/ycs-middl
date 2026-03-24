@@ -24,7 +24,8 @@ WITH expected_versions(version) AS (
     ('013'),
     ('014'),
     ('020'),
-    ('20260211000000')
+    ('20260211000000'),
+    ('20260324140000')
 ),
 remote_versions AS (
   SELECT version::text
@@ -147,4 +148,6 @@ SELECT
     SELECT 1 FROM information_schema.views
     WHERE table_schema = 'public' AND table_name = 'decided_billing_decisions_summary'
   ) AS view_exists;
+
+-- 深度一致（物件定義簽章）：請執行 supabase/verify/verify_signatures.sql（遠端與本地各跑一次後 diff 輸出）。
 

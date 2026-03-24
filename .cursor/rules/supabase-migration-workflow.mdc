@@ -14,12 +14,14 @@ alwaysApply: true
 
 ### 2. 唯一真相 (SSOT)
 - 始終以 `supabase/migrations/` 的歷史檔案作為結構定義的權威來源。
-- `consolidated_schema.sql` 僅視為 Snapshot，不得手動編輯。若發生衝突，以 migration 為準。
+- `supabase/consolidated_schema.sql` 僅為**自動產物**（`npm run schema:consolidated` → `scripts/dump-consolidated.sh`），**禁止手動編輯**。若發生衝突，以 migration 為準。
 
 ### 3. 同步與驗證 (Workflow)
 - 完成 SQL 撰寫後，應主動提醒使用者執行：
   1. `npx supabase db push` (推送到遠端環境) 或
   2. `npx supabase db reset` (重整本地環境以驗證 SQL 正確性)
+  3. 結構變更合併前執行 `npm run schema:consolidated`，並將更新後的 `consolidated_schema.sql` 一併提交（與 migrations 同 PR）。
+  4. 遠端與本地深度一致時，於兩端執行 `supabase/verify/verify_signatures.sql` 比對簽章（見 `docs/supabase-workflow.md`）。
 - **重要：** 若專案包含 TypeScript，請提醒執行 `npx supabase gen types typescript --local > types/supabase.ts` 以保持型別同步。
 
 ### 4. 變更追蹤
