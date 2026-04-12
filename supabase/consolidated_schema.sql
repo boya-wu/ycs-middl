@@ -253,6 +253,30 @@ COMMENT ON COLUMN "public"."staff_profiles"."employee_no" IS '工號（選填）
 
 
 
+CREATE TABLE IF NOT EXISTS "public"."time_record_facility_workarea" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "time_record_id" "uuid" NOT NULL,
+    "factory_location" "text" NOT NULL,
+    "work_area_code" "text" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."time_record_facility_workarea" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."time_record_facility_workarea" IS '每筆工時的所有廠區/工作區代號配對；同一邏輯工時跨廠區時一筆 time_record 可對應多個配對';
+
+
+
+COMMENT ON COLUMN "public"."time_record_facility_workarea"."factory_location" IS '所屬廠區';
+
+
+
+COMMENT ON COLUMN "public"."time_record_facility_workarea"."work_area_code" IS '工作區域代號';
+
+
+
 CREATE TABLE IF NOT EXISTS "public"."time_records" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "staff_id" "uuid" NOT NULL,
@@ -264,11 +288,26 @@ CREATE TABLE IF NOT EXISTS "public"."time_records" (
     "hours_worked" numeric(5,2),
     "notes" "text",
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "import_vendor_no" "text",
+    "department_name" "text",
+    "work_area_code" "text"
 );
 
 
 ALTER TABLE "public"."time_records" OWNER TO "postgres";
+
+
+COMMENT ON COLUMN "public"."time_records"."import_vendor_no" IS '匯入時 Excel 廠商編號快照（優先於 staff_profiles.employee_no 顯示於裁決看板）';
+
+
+
+COMMENT ON COLUMN "public"."time_records"."department_name" IS '匯入時部門名稱快照';
+
+
+
+COMMENT ON COLUMN "public"."time_records"."work_area_code" IS '匯入時 Excel 工作區域代號快照（缺值時回退為 factory_location）';
+
 
 
 CREATE OR REPLACE VIEW "public"."decided_billing_decisions_summary" AS
@@ -276,7 +315,9 @@ CREATE OR REPLACE VIEW "public"."decided_billing_decisions_summary" AS
     "tr"."staff_id",
     "tr"."task_id",
     "tr"."record_date",
-    "tr"."factory_location",
+    COALESCE(( SELECT "string_agg"(DISTINCT "m"."factory_location", ', '::"text" ORDER BY "m"."factory_location") AS "string_agg"
+           FROM "public"."time_record_facility_workarea" "m"
+          WHERE ("m"."time_record_id" = "tr"."id")), "tr"."factory_location") AS "factory_location",
     "tr"."hours_worked",
     "tr"."check_in_time",
     "tr"."check_out_time",
@@ -292,9 +333,11 @@ CREATE OR REPLACE VIEW "public"."decided_billing_decisions_summary" AS
              JOIN "public"."time_records" "tr2" ON (("bdr2"."time_record_id" = "tr2"."id")))
           WHERE ("bdr2"."billing_decision_id" = "bd"."id")) AS "merged_total_hours",
     "sp"."name" AS "staff_name",
-    "sp"."employee_no" AS "staff_employee_no",
-    NULL::"text" AS "department_name",
-    "tr"."factory_location" AS "work_area_code",
+    COALESCE("tr"."import_vendor_no", "sp"."employee_no") AS "staff_employee_no",
+    "tr"."department_name",
+    COALESCE(( SELECT "string_agg"(DISTINCT "m"."work_area_code", ', '::"text" ORDER BY "m"."work_area_code") AS "string_agg"
+           FROM "public"."time_record_facility_workarea" "m"
+          WHERE ("m"."time_record_id" = "tr"."id")), COALESCE(NULLIF("btrim"("tr"."work_area_code"), ''::"text"), "tr"."factory_location")) AS "work_area_code",
     "bd"."reason"
    FROM ((("public"."time_records" "tr"
      JOIN "public"."billing_decision_records" "bdr" ON ((("tr"."id" = "bdr"."time_record_id") AND ("bdr"."is_active" = true))))
@@ -328,7 +371,9 @@ CREATE OR REPLACE VIEW "public"."pending_billing_decisions_summary" AS
     "tr"."staff_id",
     "tr"."task_id",
     "tr"."record_date",
-    "tr"."factory_location",
+    COALESCE(( SELECT "string_agg"(DISTINCT "m"."factory_location", ', '::"text" ORDER BY "m"."factory_location") AS "string_agg"
+           FROM "public"."time_record_facility_workarea" "m"
+          WHERE ("m"."time_record_id" = "tr"."id")), "tr"."factory_location") AS "factory_location",
     "tr"."hours_worked",
     "tr"."check_in_time",
     "tr"."check_out_time",
@@ -347,9 +392,11 @@ CREATE OR REPLACE VIEW "public"."pending_billing_decisions_summary" AS
              JOIN "public"."time_records" "tr2" ON (("bdr2"."time_record_id" = "tr2"."id")))
           WHERE ("bdr2"."billing_decision_id" = "bd"."id")) AS "merged_total_hours",
     "sp"."name" AS "staff_name",
-    "sp"."employee_no" AS "staff_employee_no",
-    NULL::"text" AS "department_name",
-    "tr"."factory_location" AS "work_area_code"
+    COALESCE("tr"."import_vendor_no", "sp"."employee_no") AS "staff_employee_no",
+    "tr"."department_name",
+    COALESCE(( SELECT "string_agg"(DISTINCT "m"."work_area_code", ', '::"text" ORDER BY "m"."work_area_code") AS "string_agg"
+           FROM "public"."time_record_facility_workarea" "m"
+          WHERE ("m"."time_record_id" = "tr"."id")), COALESCE(NULLIF("btrim"("tr"."work_area_code"), ''::"text"), "tr"."factory_location")) AS "work_area_code"
    FROM ((("public"."time_records" "tr"
      LEFT JOIN "public"."billing_decision_records" "bdr" ON ((("tr"."id" = "bdr"."time_record_id") AND ("bdr"."is_active" = true))))
      LEFT JOIN "public"."billing_decisions" "bd" ON ((("bdr"."billing_decision_id" = "bd"."id") AND ("bd"."is_active" = true))))
@@ -510,8 +557,18 @@ ALTER TABLE ONLY "public"."tasks"
 
 
 
+ALTER TABLE ONLY "public"."time_record_facility_workarea"
+    ADD CONSTRAINT "time_record_facility_workarea_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."time_records"
     ADD CONSTRAINT "time_records_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."time_record_facility_workarea"
+    ADD CONSTRAINT "uq_trfw_record_factory_workarea" UNIQUE ("time_record_id", "factory_location", "work_area_code");
 
 
 
@@ -615,15 +672,19 @@ CREATE INDEX "idx_time_records_task_id" ON "public"."time_records" USING "btree"
 
 
 
+CREATE INDEX "idx_trfw_time_record_id" ON "public"."time_record_facility_workarea" USING "btree" ("time_record_id");
+
+
+
 CREATE UNIQUE INDEX "uniq_bdr_active_time_record" ON "public"."billing_decision_records" USING "btree" ("time_record_id") WHERE ("is_active" = true);
 
 
 
-CREATE UNIQUE INDEX "uniq_time_records_import_key" ON "public"."time_records" USING "btree" ("staff_id", "record_date", "factory_location", "check_in_time");
+CREATE UNIQUE INDEX "uniq_time_records_logical_key" ON "public"."time_records" USING "btree" ("staff_id", "record_date", "check_in_time", "check_out_time");
 
 
 
-COMMENT ON INDEX "public"."uniq_time_records_import_key" IS '匯入防重：用於批量 upsert，同一 clock-in 不重複寫入';
+COMMENT ON INDEX "public"."uniq_time_records_logical_key" IS '匯入防重（logical key）：同一員工同一天同一進出場時間只有一筆，廠區/代號另存於 time_record_facility_workarea';
 
 
 
@@ -707,6 +768,11 @@ ALTER TABLE ONLY "public"."tasks"
 
 
 
+ALTER TABLE ONLY "public"."time_record_facility_workarea"
+    ADD CONSTRAINT "time_record_facility_workarea_time_record_id_fkey" FOREIGN KEY ("time_record_id") REFERENCES "public"."time_records"("id") ON DELETE CASCADE;
+
+
+
 ALTER TABLE ONLY "public"."time_records"
     ADD CONSTRAINT "time_records_staff_id_fkey" FOREIGN KEY ("staff_id") REFERENCES "public"."staff_profiles"("id") ON DELETE CASCADE;
 
@@ -784,6 +850,12 @@ GRANT ALL ON TABLE "public"."billing_decisions" TO "service_role";
 GRANT ALL ON TABLE "public"."staff_profiles" TO "anon";
 GRANT ALL ON TABLE "public"."staff_profiles" TO "authenticated";
 GRANT ALL ON TABLE "public"."staff_profiles" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."time_record_facility_workarea" TO "anon";
+GRANT ALL ON TABLE "public"."time_record_facility_workarea" TO "authenticated";
+GRANT ALL ON TABLE "public"."time_record_facility_workarea" TO "service_role";
 
 
 

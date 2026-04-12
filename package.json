@@ -7,6 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "supabase:start": "npx supabase start",
+    "supabase:stop": "npx supabase stop",
+    "supabase:reset": "npx supabase db reset",
+    "supabase:truncate": "npx supabase db query -f scripts/truncate-public-data.sql --local",
     "schema:consolidated": "bash scripts/dump-consolidated.sh",
     "schema:push": "npx supabase db push"
   },
@@ -27,7 +31,7 @@
   "devDependencies": {
     "@types/react": "19.2.9",
     "@types/xlsx": "^0.0.35",
-    "supabase": "^2.83.0",
+    "supabase": "^2.89.1",
     "typescript": "5.9.3"
   }
 }

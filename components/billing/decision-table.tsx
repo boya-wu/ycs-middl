@@ -43,6 +43,14 @@ interface DecisionTableProps {
  * 🟡 黃燈：has_conflict === false && hours_worked < 2
  * 🟢 綠燈：has_conflict === false && hours_worked >= 2
  */
+/** 與裁決對話框邏輯一致：≥2h → 1.0 MD；0<h<2 → 0.5 MD */
+function suggestedRowMd(hours: number | null | undefined): number | null {
+  const h = Number(hours);
+  if (!Number.isFinite(h) || h <= 0) return null;
+  if (h >= 2) return 1;
+  return 0.5;
+}
+
 function getStatusLight(item: PendingBillingDecision): {
   color: 'red' | 'yellow' | 'green';
   label: string;
@@ -120,6 +128,7 @@ export function DecisionTable({
             const taskLabel = item.task_id
               ? taskLabelById?.get(item.task_id) ?? '未知任務'
               : '未認領';
+            const suggestedMd = suggestedRowMd(item.hours_worked);
 
             return (
               <TableRow key={item.time_record_id}>
@@ -174,7 +183,18 @@ export function DecisionTable({
                 <TableCell className="text-sm">{taskLabel}</TableCell>
                 <TableCell>{item.hours_worked?.toFixed(2) || '0.00'}</TableCell>
                 <TableCell>
-                  {item.final_md !== null ? item.final_md.toFixed(1) : '-'}
+                  {item.final_md != null ? (
+                    item.final_md.toFixed(1)
+                  ) : suggestedMd != null ? (
+                    <span
+                      className="text-muted-foreground"
+                      title="依單筆工時推估之建議 MD；合併多筆裁決時請以對話框為準，正式請款以裁決為準"
+                    >
+                      {suggestedMd.toFixed(1)}
+                    </span>
+                  ) : (
+                    '-'
+                  )}
                 </TableCell>
                 {(viewMode === 'after' || viewMode === 'summary') && (
                   <TableCell className="max-w-[200px] truncate" title={item.reason ?? undefined}>

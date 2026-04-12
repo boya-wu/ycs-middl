@@ -63,6 +63,18 @@ const REQUIRED_HEADER_DEFINITIONS = [
 
 type RequiredHeaderKey = (typeof REQUIRED_HEADER_DEFINITIONS)[number]['key'];
 
+/** 選填欄位：對應後寫入 time_records 快照，供裁決看板顯示 */
+const OPTIONAL_HEADER_DEFINITIONS = [
+  { key: '廠商編號' as const, keywords: ['廠商編號', 'vendor no', 'vendorno', '供應商編號'] },
+  { key: '部門名稱' as const, keywords: ['部門名稱', '部門', 'department', 'dept'] },
+  {
+    key: '工作區域代號' as const,
+    keywords: ['工作區域代號', '工作區域', '區域代號', 'work area code', 'work_area_code'],
+  },
+] as const;
+
+type OptionalHeaderKey = (typeof OPTIONAL_HEADER_DEFINITIONS)[number]['key'];
+
 const normalizeHeader = (value: string) =>
   value.replace(/\s+/g, '').trim().toLowerCase();
 
@@ -136,6 +148,66 @@ const persistHeaderMap = (
   }
 };
 
+const buildOptionalHeaderMap = (headers: string[]) => {
+  const normalizedHeaders = headers.map((header) => ({
+    raw: header,
+    normalized: normalizeHeader(header),
+  }));
+  const map: Partial<Record<OptionalHeaderKey, string>> = {};
+
+  for (const definition of OPTIONAL_HEADER_DEFINITIONS) {
+    const keywords = definition.keywords.map((keyword) => normalizeHeader(keyword));
+    const exactMatch = normalizedHeaders.find((header) =>
+      keywords.includes(header.normalized)
+    );
+    const fuzzyMatch =
+      exactMatch ||
+      normalizedHeaders.find((header) =>
+        keywords.some((keyword) => header.normalized.includes(keyword))
+      );
+
+    if (fuzzyMatch) {
+      map[definition.key] = fuzzyMatch.raw;
+    }
+  }
+
+  return map;
+};
+
+const loadStoredOptionalHeaderMap = (
+  signature: string,
+  headers: string[]
+): Partial<Record<OptionalHeaderKey, string>> | null => {
+  try {
+    const raw = localStorage.getItem(`upload-optional-header-map:${signature}`);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw) as Partial<Record<OptionalHeaderKey, string>>;
+    const headerSet = new Set(headers);
+    const cleaned: Partial<Record<OptionalHeaderKey, string>> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (value && headerSet.has(value)) {
+        cleaned[key as OptionalHeaderKey] = value;
+      }
+    }
+    return cleaned;
+  } catch {
+    return null;
+  }
+};
+
+const persistOptionalHeaderMap = (
+  signature: string,
+  map: Partial<Record<OptionalHeaderKey, string>>
+) => {
+  try {
+    localStorage.setItem(`upload-optional-header-map:${signature}`, JSON.stringify(map));
+  } catch {
+    // 忽略 localStorage 失敗
+  }
+};
+
 const getMissingRequiredKeys = (
   map: Partial<Record<RequiredHeaderKey, string>>
 ) => {
@@ -160,8 +232,11 @@ interface ParsedExcelRow {
   姓名: ExcelCell;
   日期: ExcelCell;
   廠區: ExcelCell;
+  工作區域代號?: ExcelCell;
   進場時間: ExcelCell;
   出場時間: ExcelCell;
+  廠商編號?: ExcelCell;
+  部門名稱?: ExcelCell;
 }
 
 /**
@@ -176,6 +251,7 @@ interface PreviewRow extends ParsedExcelRow {
 const buildPreviewRows = (
   rows: Record<string, ExcelCell>[],
   map: Partial<Record<RequiredHeaderKey, string>>,
+  optionalMap: Partial<Record<OptionalHeaderKey, string>>,
   staffList: Array<{ id: string; name: string }>,
   matcher: (
     excelName: ExcelCell,
@@ -190,6 +266,15 @@ const buildPreviewRows = (
       進場時間: getCellValue(row, map.進場時間),
       出場時間: getCellValue(row, map.出場時間),
     };
+    if (optionalMap.廠商編號) {
+      mappedRow.廠商編號 = getCellValue(row, optionalMap.廠商編號);
+    }
+    if (optionalMap.部門名稱) {
+      mappedRow.部門名稱 = getCellValue(row, optionalMap.部門名稱);
+    }
+    if (optionalMap.工作區域代號) {
+      mappedRow.工作區域代號 = getCellValue(row, optionalMap.工作區域代號);
+    }
     const matched = matcher(mappedRow.姓名, staffList);
     return {
       ...mappedRow,
@@ -364,6 +449,9 @@ export default function UploadPage() {
   const [rawRows, setRawRows] = useState<Record<string, ExcelCell>[]>([]);
   const [availableHeaders, setAvailableHeaders] = useState<string[]>([]);
   const [headerMap, setHeaderMap] = useState<Partial<Record<RequiredHeaderKey, string>>>({});
+  const [optionalHeaderMap, setOptionalHeaderMap] = useState<
+    Partial<Record<OptionalHeaderKey, string>>
+  >({});
   const [headerSignature, setHeaderSignature] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -466,15 +554,29 @@ export default function UploadPage() {
         ...(storedMap || {}),
       };
 
+      const optionalAuto = buildOptionalHeaderMap(headers);
+      const storedOptional = loadStoredOptionalHeaderMap(signature, headers);
+      const resolvedOptional = {
+        ...optionalAuto,
+        ...(storedOptional || {}),
+      };
+
       setAvailableHeaders(headers);
       setRawRows(jsonData);
       setHeaderMap(resolvedMap);
+      setOptionalHeaderMap(resolvedOptional);
       setHeaderSignature(signature);
       setImportSessionState({});
       setCreateStaffPopoverIndex(null);
       setBatchCreateForm({});
 
-      const previewRows = buildPreviewRows(jsonData, resolvedMap, staffList, matchStaffName);
+      const previewRows = buildPreviewRows(
+        jsonData,
+        resolvedMap,
+        resolvedOptional,
+        staffList,
+        matchStaffName
+      );
       setPreviewData(previewRows);
 
       const missingRequired = getMissingRequiredKeys(resolvedMap);
@@ -501,10 +603,48 @@ export default function UploadPage() {
     if (headerSignature) {
       persistHeaderMap(headerSignature, nextMap);
     }
-    const previewRows = buildPreviewRows(rawRows, nextMap, staffProfiles, matchStaffName);
+    const previewRows = buildPreviewRows(
+      rawRows,
+      nextMap,
+      optionalHeaderMap,
+      staffProfiles,
+      matchStaffName
+    );
     const withSession = previewRows.map((r) => {
       const key = nameKey(r.姓名);
       const session = key ? importSessionState[key] : undefined;
+      if (session && !r.matchedStaffId) {
+        return {
+          ...r,
+          matchedStaffId: session.staffId,
+          matchedStaffName: session.staffName,
+          matchStatus: 'manual' as const,
+        };
+      }
+      return r;
+    });
+    setPreviewData(withSession);
+  };
+
+  const handleOptionalHeaderMappingChange = (key: OptionalHeaderKey, value: string) => {
+    const nextMap: Partial<Record<OptionalHeaderKey, string>> = {
+      ...optionalHeaderMap,
+      [key]: value || undefined,
+    };
+    setOptionalHeaderMap(nextMap);
+    if (headerSignature) {
+      persistOptionalHeaderMap(headerSignature, nextMap);
+    }
+    const previewRows = buildPreviewRows(
+      rawRows,
+      headerMap,
+      nextMap,
+      staffProfiles,
+      matchStaffName
+    );
+    const withSession = previewRows.map((r) => {
+      const keyName = nameKey(r.姓名);
+      const session = keyName ? importSessionState[keyName] : undefined;
       if (session && !r.matchedStaffId) {
         return {
           ...r,
@@ -621,13 +761,33 @@ export default function UploadPage() {
       toast.error('請至少為一位未匹配人員填寫 Email');
       return;
     }
-    setIsBatchCreating(true);
     const displayName = (n: ExcelCell) =>
       typeof n === 'string' ? n.trim() : String(n ?? '');
+    const namesByEmailLower = new Map<string, string[]>();
+    for (const row of toCreate) {
+      const el = row.email.toLowerCase();
+      const label = displayName(row.excelName) || row.email;
+      const arr = namesByEmailLower.get(el);
+      if (arr) arr.push(label);
+      else namesByEmailLower.set(el, [label]);
+    }
+    const duplicateEmailGroups = [...namesByEmailLower.entries()].filter(
+      ([, names]) => names.length > 1
+    );
+    if (duplicateEmailGroups.length > 0) {
+      const detail = duplicateEmailGroups
+        .map(([el, names]) => `${el}（${names.join('、')}）`)
+        .join('；');
+      toast.error(
+        `批次內 Email 重複（不分大小寫），請為每位人員使用不同 Email：${detail}`
+      );
+      return;
+    }
+    setIsBatchCreating(true);
     const succeeded: string[] = [];
     const failed: { name: string; error: string }[] = [];
     try {
-      for (const { key, excelName, email, employeeNo } of toCreate) {
+      for (const { excelName, email, employeeNo } of toCreate) {
         const result = await createStaffProfile({
           name: displayName(excelName) || email,
           email,
@@ -856,13 +1016,20 @@ export default function UploadPage() {
         }
 
         const displayName = normalizeText(row.姓名);
+        const vendorNo = normalizeText(row.廠商編號);
+        const deptName = normalizeText(row.部門名稱);
+        const workAreaCode = normalizeText(row.工作區域代號);
+        const factoryLocation = normalizeText(row.廠區);
         return {
           staff_id: row.matchedStaffId!,
           record_date: recordDate,
-          factory_location: normalizeText(row.廠區),
+          factory_location: factoryLocation,
+          work_area_code: workAreaCode || factoryLocation,
           check_in_time: checkInTime,
           check_out_time: checkOutTime,
           notes: `匯入自 Excel - ${displayName}`,
+          import_vendor_no: vendorNo || null,
+          department_name: deptName || null,
         };
       });
 
@@ -917,7 +1084,7 @@ export default function UploadPage() {
         <CardHeader>
           <CardTitle>上傳 Excel 檔案</CardTitle>
           <CardDescription>
-            請上傳包含以下欄位的 Excel 檔案：姓名、日期、廠區、進場時間、出場時間
+            請上傳包含以下欄位的 Excel 檔案：姓名、日期、廠區、進場時間、出場時間（選填：廠商編號、部門名稱、工作區域代號）
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -991,6 +1158,41 @@ export default function UploadPage() {
                       </div>
                     );
                   })}
+                </div>
+                <div className="mt-4 border-t border-border pt-4">
+                  <div className="mb-2 text-sm font-medium">選填欄位對應</div>
+                  <p className="mb-3 text-xs text-muted-foreground">
+                    對應後會一併寫入紀錄並顯示於請款裁決看板（未對應則留空）
+                  </p>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {OPTIONAL_HEADER_DEFINITIONS.map((definition) => (
+                      <div key={definition.key}>
+                        <label className="mb-1 block text-sm font-medium">
+                          {definition.key}
+                          <span className="ml-2 text-xs text-muted-foreground">可選</span>
+                        </label>
+                        <Select
+                          value={optionalHeaderMap[definition.key] ?? ''}
+                          onChange={(event) =>
+                            handleOptionalHeaderMappingChange(
+                              definition.key,
+                              event.target.value
+                            )
+                          }
+                          className="bg-background"
+                        >
+                          <option value="" className="bg-background">
+                            (未選擇)
+                          </option>
+                          {availableHeaders.map((header) => (
+                            <option key={header} value={header} className="bg-background">
+                              {header}
+                            </option>
+                          ))}
+                        </Select>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -1103,6 +1305,9 @@ export default function UploadPage() {
                     <TableHead>姓名</TableHead>
                     <TableHead>日期</TableHead>
                     <TableHead>廠區</TableHead>
+                    <TableHead>工作區域代號</TableHead>
+                    <TableHead>廠商編號</TableHead>
+                    <TableHead>部門名稱</TableHead>
                     <TableHead>進場時間</TableHead>
                     <TableHead>出場時間</TableHead>
                     <TableHead>匹配狀態</TableHead>
@@ -1122,6 +1327,9 @@ export default function UploadPage() {
                         {renderRecordDateValue(row)}
                       </TableCell>
                       <TableCell>{normalizeText(row.廠區) || '-'}</TableCell>
+                      <TableCell>{normalizeText(row.工作區域代號) || '-'}</TableCell>
+                      <TableCell>{normalizeText(row.廠商編號) || '-'}</TableCell>
+                      <TableCell>{normalizeText(row.部門名稱) || '-'}</TableCell>
                       <TableCell>
                         {renderRecordTimeValue(row.進場時間)}
                       </TableCell>
