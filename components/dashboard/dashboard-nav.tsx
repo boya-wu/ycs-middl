@@ -2,16 +2,21 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Upload, Scale } from 'lucide-react';
+import { LayoutDashboard, Upload, Scale, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const navItems = [
-  { href: '/dashboard', label: '首頁', icon: LayoutDashboard },
+const navSections = [
   {
     section: '請款認領',
     links: [
       { href: '/dashboard/upload', label: '工時匯入', icon: Upload },
       { href: '/dashboard/billing', label: '認領看板', icon: Scale },
+    ],
+  },
+  {
+    section: '進廠管理',
+    links: [
+      { href: '/dashboard/pip', label: 'PIP 自我檢查', icon: ShieldCheck },
     ],
   },
 ] as const;
@@ -37,30 +42,32 @@ export function DashboardNav() {
         <LayoutDashboard className="h-4 w-4 shrink-0" />
         首頁
       </Link>
-      <div className="flex flex-col gap-1">
-        <span className="px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          請款認領
-        </span>
-        {navItems[1].links.map(({ href, label, icon: Icon }) => {
-          const isActive = pathname === href;
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground',
-                isActive
-                  ? 'bg-muted font-semibold text-foreground'
-                  : 'text-muted-foreground'
-              )}
-              aria-current={isActive ? 'page' : undefined}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              {label}
-            </Link>
-          );
-        })}
-      </div>
+      {navSections.map(({ section, links }) => (
+        <div key={section} className="flex flex-col gap-1">
+          <span className="px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            {section}
+          </span>
+          {links.map(({ href, label, icon: Icon }) => {
+            const isActive = pathname === href;
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={cn(
+                  'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground',
+                  isActive
+                    ? 'bg-muted font-semibold text-foreground'
+                    : 'text-muted-foreground'
+                )}
+                aria-current={isActive ? 'page' : undefined}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {label}
+              </Link>
+            );
+          })}
+        </div>
+      ))}
     </nav>
   );
 }

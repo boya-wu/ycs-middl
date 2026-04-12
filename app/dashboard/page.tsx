@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Upload, Scale, FileSpreadsheet } from 'lucide-react';
+import { Upload, Scale, FileSpreadsheet, ShieldCheck } from 'lucide-react';
 
 /**
  * 模組入口首頁 - 平台概念層
@@ -60,6 +60,35 @@ export default function DashboardPage() {
             >
               <Scale className="mr-1.5 h-4 w-4" />
               認領看板
+            </Link>
+          </CardFooter>
+        </Card>
+
+        <Card className="flex flex-col">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5" />
+              進廠 PIP 自我檢查
+            </CardTitle>
+            <CardDescription>
+              進廠前隨身物品與作業地點確認，完成後存檔供後續維護紀錄
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex-1">
+            <p className="text-sm text-muted-foreground">
+              掃描工作證、填寫廠區與工作內容，並完成 PIP 檢核項目後預覽送出。
+            </p>
+          </CardContent>
+          <CardFooter>
+            <Link
+              href="/dashboard/pip"
+              className={cn(
+                'inline-flex h-9 items-center justify-center rounded-md px-3 text-sm font-medium transition-colors',
+                'bg-primary text-primary-foreground hover:bg-primary/90'
+              )}
+            >
+              <ShieldCheck className="mr-1.5 h-4 w-4" />
+              開始檢查
             </Link>
           </CardFooter>
         </Card>
