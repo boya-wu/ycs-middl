@@ -4,7 +4,7 @@ import { unstable_noStore } from 'next/cache';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 /**
- * 待裁決時數紀錄的資料型別
+ * 待認領時數紀錄的資料型別
  */
 export interface PendingBillingDecision {
   time_record_id: string;
@@ -22,13 +22,15 @@ export interface PendingBillingDecision {
   is_billable: boolean;
   final_md: number | null;
   has_decision: boolean;
-  /** 裁決原因（僅已裁決紀錄來自 decided_billing_decisions_summary 時有值） */
+  /** 認領原因（僅已認領紀錄來自 decided_billing_decisions_summary 時有值） */
   reason?: string | null;
   merged_total_hours: number | null;
   staff_name: string | null;
   staff_employee_no: string | null;
   department_name: string | null;
   work_area_code: string | null;
+  /** time_record_facility_workarea 筆數；>1 時應顯示跨廠區／多組代號（與 STRING_AGG 逗號無關） */
+  facility_mapping_count?: number | null;
 }
 
 /**
@@ -48,7 +50,7 @@ export interface ClaimableTask {
 }
 
 /**
- * 查詢待裁決時數紀錄列表
+ * 查詢待認領時數紀錄列表
  * 資料來源：pending_billing_decisions_summary View（唯讀）
  */
 export async function getPendingBillingDecisions(): Promise<{
@@ -68,7 +70,7 @@ export async function getPendingBillingDecisions(): Promise<{
       .range(0, 1999);
 
     if (error) {
-      throw new Error(`查詢待裁決紀錄失敗: ${error.message}`);
+      throw new Error(`查詢待認領紀錄失敗: ${error.message}`);
     }
 
     // View 可能因同一 time_record 多筆 bdr（歷史）回傳重複列，以 time_record_id 去重保留第一筆（已依日期/時間排序）
@@ -94,8 +96,8 @@ export async function getPendingBillingDecisions(): Promise<{
 }
 
 /**
- * 查詢已裁決時數紀錄列表（用於裁決看板「裁決後」分頁）
- * 資料來源：decided_billing_decisions_summary View（有 active 裁決且已出場的紀錄，含 is_billable = TRUE）
+ * 查詢已認領時數紀錄列表（用於認領看板「認領後」分頁）
+ * 資料來源：decided_billing_decisions_summary View（有 active 認領記錄且已出場的紀錄，含 is_billable = TRUE）
  */
 export async function getDecidedBillingDecisions(): Promise<{
   success: boolean;
@@ -114,7 +116,7 @@ export async function getDecidedBillingDecisions(): Promise<{
       .range(0, 1999);
 
     if (error) {
-      throw new Error(`查詢已裁決紀錄失敗: ${error.message}`);
+      throw new Error(`查詢已認領紀錄失敗: ${error.message}`);
     }
 
     const list = (data || []) as PendingBillingDecision[];

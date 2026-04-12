@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 /**
- * API Route: 取得已裁決時數紀錄（裁決看板「裁決後」分頁用）
+ * API Route: 取得已認領時數紀錄（認領看板「認領後」分頁用）
  */
 export async function GET() {
   const result = await getDecidedBillingDecisions();

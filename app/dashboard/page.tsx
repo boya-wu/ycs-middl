@@ -29,15 +29,15 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Scale className="h-5 w-5" />
-              請款裁決
+              請款認領
             </CardTitle>
             <CardDescription>
-              工時匯入與裁決看板，管理時數紀錄並進行請款裁決
+              工時匯入與認領看板，管理時數紀錄並進行請款認領
             </CardDescription>
           </CardHeader>
           <CardContent className="flex-1">
             <p className="text-sm text-muted-foreground">
-              上傳工時 Excel、對應人員與廠區，並在裁決看板中將工時認領至專案／任務。
+              上傳工時 Excel、對應人員與廠區，並在認領看板中將工時認領至專案／任務。
             </p>
           </CardContent>
           <CardFooter className="flex gap-2">
@@ -59,7 +59,7 @@ export default function DashboardPage() {
               )}
             >
               <Scale className="mr-1.5 h-4 w-4" />
-              裁決看板
+              認領看板
             </Link>
           </CardFooter>
         </Card>

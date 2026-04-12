@@ -25,8 +25,31 @@ const BATCH_SIZE = 150;
 /**
  * 匯入防重鍵：logical key，不含廠區/代號。
  * 廠區/代號多值由 time_record_facility_workarea mapping 表管理。
+ *
+ * 「同筆」定義：同一員工、同一 record_date、check_in_time / check_out_time 與寫入 DB 的
+ * timestamptz 值完全一致（無秒級容差）。僅廠區／工作區代號不同時應合併為一筆 time_record。
  */
 const IMPORT_LOGICAL_KEY = 'staff_id,record_date,check_in_time,check_out_time';
+
+/**
+ * timestamptz 經 PostgREST 回傳時常為 `...+00:00`、無毫秒；前端多為 `...Z`。
+ * 字串直接拼接會導致 canonicalMap 對不到，mapping 全漏寫 → 認領看板「跨廠區／代號」永遠單一。
+ */
+function instantIsoForLookupKey(value: string | null | undefined): string {
+  if (value == null || value === '') return '';
+  const ms = Date.parse(value);
+  if (!Number.isFinite(ms)) return String(value);
+  return new Date(ms).toISOString();
+}
+
+function buildLogicalLookupKey(
+  staffId: string,
+  recordDate: string,
+  checkIn: string,
+  checkOut: string
+): string {
+  return `${staffId}|${recordDate}|${instantIsoForLookupKey(checkIn)}|${instantIsoForLookupKey(checkOut)}`;
+}
 
 /**
  * 匯入時數紀錄（批量三階段寫入）
@@ -41,9 +64,16 @@ export async function importTimeRecords(
   success: boolean;
   data?: {
     imported: number;
+    /** 未建立新 time_records 列的筆數（僅併入廠區／工作區 mapping 或與既有列重疊） */
+    mergedAsExtraFacilities: number;
+    /** 未匯入寫入佇列的筆數：缺出場、時長過短 */
     skipped: number;
     skippedNoCheckOut?: number;
     skippedDuration?: number;
+    /**
+     * @deprecated 與 mergedAsExtraFacilities 相同；保留供相容舊版前端字串。
+     * 語意為「同 logical key 未新建主列」而非資料丟棄。
+     */
     skippedDuplicates?: number;
     errors: string[];
   };
@@ -56,8 +86,8 @@ export async function importTimeRecords(
   let skippedNoCheckOut = 0;
 
   try {
-    // 1) 潔癖 + 裁決可見：僅寫入「有出場時間」且 duration >= 5 分鐘的列（task_id 強制 null）
-    //    缺出場時間的列不寫入，否則裁決看板 View（pending_billing_decisions_summary）不會顯示
+    // 1) 潔癖 + 認領看板可見：僅寫入「有出場時間」且 duration >= 5 分鐘的列（task_id 強制 null）
+    //    缺出場時間的列不寫入，否則認領看板 View（pending_billing_decisions_summary）不會顯示
     const toInsert: Array<{
       staff_id: string;
       task_id: null;
@@ -94,10 +124,10 @@ export async function importTimeRecords(
 
       toInsert.push({
         staff_id: record.staff_id,
-        task_id: null, // 公海池：匯入時不寫入專案/任務，裁決中心再認領
+        task_id: null, // 公海池：匯入時不寫入專案/任務，認領中心再指派
         record_date: record.record_date,
         factory_location: factoryLocation,
-        // 若 Excel 缺工作區域代號，回退為廠區，避免裁決看板顯示空值或錯值
+        // 若 Excel 缺工作區域代號，回退為廠區，避免認領看板顯示空值或錯值
         work_area_code: workArea || factoryLocation,
         check_in_time: record.check_in_time,
         check_out_time: record.check_out_time,
@@ -144,17 +174,27 @@ export async function importTimeRecords(
           continue;
         }
 
-        // 建立 logical_key → canonical id 的映射
+        // 建立 logical_key → canonical id 的映射（時間戳正規化後與 chunk 一致）
         const canonicalMap = new Map(
           canonicalRows.map((r) => [
-            `${r.staff_id}|${r.record_date}|${r.check_in_time}|${r.check_out_time}`,
+            buildLogicalLookupKey(
+              r.staff_id,
+              String(r.record_date),
+              String(r.check_in_time),
+              String(r.check_out_time)
+            ),
             r.id,
           ])
         );
 
         // 階段 C：插入 mapping 配對（ON CONFLICT DO NOTHING 防重）
         const mappingRows = chunk.flatMap((r) => {
-          const key = `${r.staff_id}|${r.record_date}|${r.check_in_time}|${r.check_out_time}`;
+          const key = buildLogicalLookupKey(
+            r.staff_id,
+            r.record_date,
+            r.check_in_time,
+            r.check_out_time
+          );
           const canonicalId = canonicalMap.get(key);
           if (!canonicalId) return [];
           return [
@@ -184,8 +224,8 @@ export async function importTimeRecords(
       }
     }
 
-    const skippedDuplicates = toInsert.length - imported;
-    const skipped = skippedNoCheckOut + skippedDuration + skippedDuplicates;
+    const mergedAsExtraFacilities = toInsert.length - imported;
+    const skipped = skippedNoCheckOut + skippedDuration;
 
     revalidatePath('/dashboard/billing');
 
@@ -193,10 +233,11 @@ export async function importTimeRecords(
       success: true,
       data: {
         imported,
+        mergedAsExtraFacilities,
         skipped,
         skippedNoCheckOut,
         skippedDuration,
-        skippedDuplicates,
+        skippedDuplicates: mergedAsExtraFacilities,
         errors,
       },
     };

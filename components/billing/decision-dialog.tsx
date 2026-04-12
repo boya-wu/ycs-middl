@@ -30,7 +30,7 @@ interface DecisionDialogProps {
 }
 
 /**
- * 裁決確認對話框
+ * 認領確認對話框
  * 顯示選中項目的摘要，允許 PM 輸入最終 MD 與原因
  */
 export function DecisionDialog({
@@ -161,9 +161,9 @@ export function DecisionDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>確認裁決</DialogTitle>
+          <DialogTitle>確認認領</DialogTitle>
           <DialogDescription>
-            請確認裁決資訊並輸入裁決原因
+            請確認認領資訊並輸入認領原因
           </DialogDescription>
         </DialogHeader>
 
@@ -312,13 +312,13 @@ export function DecisionDialog({
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">本次裁決 MD：</span>
+              <span className="text-sm text-muted-foreground">本次認領 MD：</span>
               <span className="font-medium">
                 {!isNaN(parseFloat(finalMd)) ? parseFloat(finalMd).toFixed(2) : '-'}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">裁決後累計 MD：</span>
+              <span className="text-sm text-muted-foreground">認領後累計 MD：</span>
               <span className="font-medium">
                 {selectedTask?.used_md !== null && selectedTask?.used_md !== undefined && !isNaN(parseFloat(finalMd))
                   ? (selectedTask.used_md + parseFloat(finalMd)).toFixed(2)
@@ -354,14 +354,14 @@ export function DecisionDialog({
             </p>
           </div>
 
-          {/* 裁決原因 */}
+          {/* 認領原因 */}
           <div className="space-y-2">
-            <Label htmlFor="reason">裁決原因 *</Label>
+            <Label htmlFor="reason">認領原因 *</Label>
             <Textarea
               id="reason"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="請輸入裁決原因..."
+              placeholder="請輸入認領原因..."
               rows={3}
             />
           </div>
@@ -381,7 +381,7 @@ export function DecisionDialog({
               parseFloat(finalMd) <= 0
             }
           >
-            {isSubmitting ? '處理中...' : '確認裁決'}
+            {isSubmitting ? '處理中...' : '確認認領'}
           </Button>
         </DialogFooter>
       </DialogContent>

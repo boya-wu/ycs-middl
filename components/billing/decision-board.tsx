@@ -11,12 +11,12 @@ import { toast } from 'sonner';
 
 interface BillingDecisionBoardProps {
   initialData: PendingBillingDecision[];
-  /** 已裁決紀錄（來自 decided_billing_decisions_summary），用於裁決後分頁與總表 */
+  /** 已認領紀錄（來自 decided_billing_decisions_summary），用於認領後分頁與總表 */
   initialDecidedData?: PendingBillingDecision[];
   taskOptions: ClaimableTask[];
 }
 
-/** 以 time_record_id 去重，避免 view/API 回傳重複列時在切換總筆數/待裁決時堆疊 */
+/** 以 time_record_id 去重，避免 view/API 回傳重複列時在切換總筆數/待認領時堆疊 */
 function dedupePendingById(list: PendingBillingDecision[]): PendingBillingDecision[] {
   const seen = new Set<string>();
   return list.filter((row) => {
@@ -27,8 +27,8 @@ function dedupePendingById(list: PendingBillingDecision[]): PendingBillingDecisi
 }
 
 /**
- * 請款裁決看板主組件
- * 管理選中的時數紀錄，處理裁決流程
+ * 請款認領看板主組件
+ * 管理選中的時數紀錄，處理認領流程
  */
 export function BillingDecisionBoard({
   initialData,
@@ -43,7 +43,7 @@ export function BillingDecisionBoard({
     dedupePendingById(initialDecidedData)
   );
   const [isRefreshing, setIsRefreshing] = useState(false);
-  /** 裁決前＝可裁決 | 裁決後＝可取消裁決 | 總表＝純顯示 */
+  /** 認領前＝可認領 | 認領後＝可取消認領 | 總表＝純顯示 */
   const [viewMode, setViewMode] = useState<'before' | 'after' | 'summary'>('before');
 
   useEffect(() => {
@@ -88,7 +88,7 @@ export function BillingDecisionBoard({
   const canConfirmDecision = viewMode === 'before';
   const canCancelDecision = viewMode === 'after';
 
-  // 計算選中項目的總時數與建議 MD（裁決前用 visibleData 的選取，裁決後用 afterData）
+  // 計算選中項目的總時數與建議 MD（認領前用 visibleData 的選取，認領後用 afterData）
   const selectedSummary = useMemo(() => {
     const source = viewMode === 'before' ? data : viewMode === 'after' ? decidedData : [];
     const selected = source.filter((item) => selectedIds.has(item.time_record_id));
@@ -126,7 +126,7 @@ export function BillingDecisionBoard({
     }
   };
 
-  // 重新整理資料（同時拉取待裁決與已裁決），用 useCallback 穩定參考供 visibility/pageshow 依賴
+  // 重新整理資料（同時拉取待認領與已認領），用 useCallback 穩定參考供 visibility/pageshow 依賴
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
     try {
@@ -168,7 +168,7 @@ export function BillingDecisionBoard({
     return () => window.removeEventListener('pageshow', onPageShow);
   }, [handleRefresh]);
 
-  // 處理裁決確認
+  // 處理認領確認
   const handleConfirmDecision = async (
     finalMd: number,
     reason: string,
@@ -193,21 +193,21 @@ export function BillingDecisionBoard({
         decision_type: hasConflict ? 'conflict_resolved' : 'merged_records',
         final_md: finalMd,
         recommended_md: selectedSummary.recommendedMd,
-        reason: reason || 'PM 裁決',
+        reason: reason || 'PM 認領',
         has_conflict: hasConflict,
         is_conflict_resolved: hasConflict,
         is_billable: true,
       });
 
       if (result.success) {
-        toast.success('裁決成功建立');
+        toast.success('認領成功建立');
         setSelectedIds(new Set());
         setIsDialogOpen(false);
         // 重新整理資料
         router.refresh();
         await handleRefresh();
       } else {
-        toast.error(result.error || '裁決失敗');
+        toast.error(result.error || '認領失敗');
       }
     } catch (error) {
       const message =
@@ -215,7 +215,7 @@ export function BillingDecisionBoard({
           ? error.message
           : typeof (error as { message?: string })?.message === 'string'
             ? (error as { message: string }).message
-            : '裁決時發生錯誤';
+            : '認領時發生錯誤';
       toast.error(message);
       console.error(error);
     }
@@ -238,7 +238,7 @@ export function BillingDecisionBoard({
                 )}
               </>
             ) : (
-              '總表為唯讀，不支援勾選與裁決操作'
+              '總表為唯讀，不支援勾選與認領操作'
             )}
           </div>
           <div className="flex flex-wrap gap-2">
@@ -249,7 +249,7 @@ export function BillingDecisionBoard({
                 setSelectedIds(new Set());
               }}
             >
-              裁決前 ({beforeData.length})
+              認領前 ({beforeData.length})
             </Button>
             <Button
               variant={viewMode === 'after' ? 'default' : 'outline'}
@@ -258,7 +258,7 @@ export function BillingDecisionBoard({
                 setSelectedIds(new Set());
               }}
             >
-              裁決後 ({afterData.length})
+              認領後 ({afterData.length})
             </Button>
             <Button
               variant={viewMode === 'summary' ? 'default' : 'outline'}
@@ -290,16 +290,16 @@ export function BillingDecisionBoard({
                 onClick={() => setIsDialogOpen(true)}
                 disabled={selectedIds.size === 0}
               >
-                確認裁決
+                確認認領
               </Button>
             )}
             {canCancelDecision && (
               <Button
                 variant="outline"
-                onClick={() => toast.info('取消裁決功能開發中')}
+                onClick={() => toast.info('取消認領功能開發中')}
                 disabled={selectedIds.size === 0}
               >
-                取消裁決
+                取消認領
               </Button>
             )}
           </div>
@@ -317,7 +317,7 @@ export function BillingDecisionBoard({
         />
       </div>
 
-      {/* 裁決確認對話框 */}
+      {/* 認領確認對話框 */}
       <DecisionDialog
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}

@@ -503,14 +503,15 @@ export type Database = {
           is_billable: boolean | null
           is_conflict_resolved: boolean | null
           merged_total_hours: number | null
-          reason: string | null
           record_date: string | null
+          reason: string | null
           staff_employee_no: string | null
           staff_id: string | null
           staff_name: string | null
           task_id: string | null
           time_record_id: string | null
           work_area_code: string | null
+          facility_mapping_count: number | null
         }
         Relationships: [
           {
@@ -537,6 +538,7 @@ export type Database = {
           decision_type: string | null
           department_name: string | null
           factory_location: string | null
+          facility_mapping_count: number | null
           final_md: number | null
           has_conflict: boolean | null
           has_decision: boolean | null

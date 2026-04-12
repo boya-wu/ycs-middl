@@ -6,12 +6,12 @@ import {
 } from '@/actions/billing/queries';
 import { BillingDecisionBoard } from '@/components/billing/decision-board';
 
-/** 避免快取導致裁決看板顯示舊/空資料 */
+/** 避免快取導致認領看板顯示舊/空資料 */
 export const dynamic = 'force-dynamic';
 
 /**
- * 請款裁決看板頁面
- * PM 使用的請款裁決介面，顯示待裁決／已裁決的時數紀錄並允許進行裁決或取消裁決
+ * 請款認領看板頁面
+ * PM 使用的請款認領介面，顯示待認領／已認領的時數紀錄並允許進行認領或取消認領
  */
 export default async function BillingDashboardPage() {
   unstable_noStore();
@@ -37,9 +37,9 @@ export default async function BillingDashboardPage() {
   return (
     <div className="container mx-auto p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">請款裁決看板</h1>
+        <h1 className="text-2xl font-bold">請款認領看板</h1>
         <p className="text-muted-foreground mt-1">
-          檢視待裁決的時數紀錄，進行合併裁決
+          檢視待認領的時數紀錄，進行合併認領
         </p>
       </div>
       <BillingDecisionBoard

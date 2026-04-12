@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 /**
- * 對裁決看板頁面與相關 API 加上 Cache-Control: no-store，
+ * 對認領看板頁面與相關 API 加上 Cache-Control: no-store，
  * 避免瀏覽器快取導致重新整理後仍顯示舊資料。
  */
 export function middleware(request: NextRequest) {

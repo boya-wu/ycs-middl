@@ -43,7 +43,7 @@ interface DecisionTableProps {
  * 🟡 黃燈：has_conflict === false && hours_worked < 2
  * 🟢 綠燈：has_conflict === false && hours_worked >= 2
  */
-/** 與裁決對話框邏輯一致：≥2h → 1.0 MD；0<h<2 → 0.5 MD */
+/** 與認領對話框邏輯一致：≥2h → 1.0 MD；0<h<2 → 0.5 MD */
 function suggestedRowMd(hours: number | null | undefined): number | null {
   const h = Number(hours);
   if (!Number.isFinite(h) || h <= 0) return null;
@@ -66,7 +66,7 @@ function getStatusLight(item: PendingBillingDecision): {
 
 /**
  * 時數紀錄表格組件
- * 顯示待裁決的時數紀錄，支援多選
+ * 顯示待認領的時數紀錄，支援多選
  */
 export function DecisionTable({
   data,
@@ -79,8 +79,8 @@ export function DecisionTable({
 }: DecisionTableProps) {
   if (data.length === 0) {
     const emptyMessages: Record<string, string> = {
-      before: '目前沒有可裁決的時數紀錄',
-      after: '目前沒有已裁決（可取消）的紀錄',
+      before: '目前沒有可認領的時數紀錄',
+      after: '目前沒有已認領（可取消）的紀錄',
       summary: '目前沒有進廠紀錄',
     };
     return (
@@ -116,7 +116,7 @@ export function DecisionTable({
             <TableHead>時數</TableHead>
             <TableHead>MD</TableHead>
             {(viewMode === 'after' || viewMode === 'summary') && (
-              <TableHead>裁決原因</TableHead>
+              <TableHead>認領原因</TableHead>
             )}
             <TableHead>備註</TableHead>
           </TableRow>
@@ -188,7 +188,7 @@ export function DecisionTable({
                   ) : suggestedMd != null ? (
                     <span
                       className="text-muted-foreground"
-                      title="依單筆工時推估之建議 MD；合併多筆裁決時請以對話框為準，正式請款以裁決為準"
+                      title="依單筆工時推估之建議 MD；合併多筆認領時請以對話框為準，正式請款以認領為準"
                     >
                       {suggestedMd.toFixed(1)}
                     </span>
@@ -203,7 +203,7 @@ export function DecisionTable({
                 )}
                 <TableCell className="text-muted-foreground">
                   {item.has_conflict && '⚠️ 衝突'}
-                  {item.has_decision && '✓ 已裁決'}
+                  {item.has_decision && '✓ 已認領'}
                 </TableCell>
               </TableRow>
             );

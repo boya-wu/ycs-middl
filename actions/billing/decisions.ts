@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 
 /**
- * 建立計費裁決的參數介面
+ * 建立計費認領的參數介面
  */
 export interface CreateBillingDecisionParams {
   time_record_ids: string[];
@@ -23,7 +23,7 @@ export interface CreateBillingDecisionParams {
 }
 
 /**
- * 建立計費裁決 Server Action
+ * 建立計費認領 Server Action
  * 
  * 流程：
  * 1. 檢查傳入的 time_record_ids 是否已被任何 is_active = TRUE 的 billing_decision 關聯
@@ -66,7 +66,7 @@ export async function createBillingDecision(
     if (foundCount !== requestedIds.length) {
       return {
         success: false,
-        error: '所選工時已失效或部分不存在（例如資料已重新匯入）。請重新整理頁面後再選並裁決。',
+        error: '所選工時已失效或部分不存在（例如資料已重新匯入）。請重新整理頁面後再選並認領。',
       };
     }
 

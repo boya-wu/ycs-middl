@@ -63,7 +63,7 @@ const REQUIRED_HEADER_DEFINITIONS = [
 
 type RequiredHeaderKey = (typeof REQUIRED_HEADER_DEFINITIONS)[number]['key'];
 
-/** 選填欄位：對應後寫入 time_records 快照，供裁決看板顯示 */
+/** 選填欄位：對應後寫入 time_records 快照，供認領看板顯示 */
 const OPTIONAL_HEADER_DEFINITIONS = [
   { key: '廠商編號' as const, keywords: ['廠商編號', 'vendor no', 'vendorno', '供應商編號'] },
   { key: '部門名稱' as const, keywords: ['部門名稱', '部門', 'department', 'dept'] },
@@ -240,7 +240,7 @@ interface ParsedExcelRow {
 }
 
 /**
- * 預覽表格的資料型別（含匹配狀態；匯入後 task_id 一律為 NULL，於裁決階段認領）
+ * 預覽表格的資料型別（含匹配狀態；匯入後 task_id 一律為 NULL，於認領階段指派）
  */
 interface PreviewRow extends ParsedExcelRow {
   matchedStaffId: string | null;
@@ -461,6 +461,8 @@ export default function UploadPage() {
   >({});
   /** 僅顯示未匹配人員（表格過濾） */
   const [showUnmatchedOnly, setShowUnmatchedOnly] = useState(false);
+  /** 僅顯示將與其他列合併為同一邏輯工時的列（跨廠區／代號，logical key 相同） */
+  const [showMergeCandidatesOnly, setShowMergeCandidatesOnly] = useState(false);
   /** 摘要區批次建立：每個未匹配姓名 key → { email, employeeNo }，直接顯示欄位一次填完再批次建立 */
   const [batchCreateForm, setBatchCreateForm] = useState<
     Record<string, { email: string; employeeNo: string }>
@@ -771,7 +773,7 @@ export default function UploadPage() {
       if (arr) arr.push(label);
       else namesByEmailLower.set(el, [label]);
     }
-    const duplicateEmailGroups = [...namesByEmailLower.entries()].filter(
+    const duplicateEmailGroups = Array.from(namesByEmailLower.entries()).filter(
       ([, names]) => names.length > 1
     );
     if (duplicateEmailGroups.length > 0) {
@@ -983,6 +985,74 @@ export default function UploadPage() {
     return parsed;
   };
 
+  /** 與 actions/upload/import.ts logical key 一致，供預覽合併提示（僅已匹配人員且可匯入列） */
+  const crossFacilityMergePreview = useMemo(() => {
+    const keyToIndices = new Map<string, number[]>();
+    previewData.forEach((row, index) => {
+      if (!row.matchedStaffId) return;
+      let recordDate: string;
+      try {
+        recordDate = resolveRecordDate(row);
+      } catch {
+        return;
+      }
+      const dateCell = row.日期 ?? row.進場時間;
+      const checkIn = resolveDateTime(dateCell, row.進場時間);
+      if (!checkIn) return;
+      if (!row.出場時間) return;
+      const checkOut = resolveDateTime(dateCell, row.出場時間);
+      if (!checkOut) return;
+      const durationMinutes =
+        (new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 60);
+      if (durationMinutes < 5) return;
+      const key = `${row.matchedStaffId}|${recordDate}|${checkIn}|${checkOut}`;
+      const arr = keyToIndices.get(key) ?? [];
+      arr.push(index);
+      keyToIndices.set(key, arr);
+    });
+
+    const mergeGroups = Array.from(keyToIndices.entries()).filter(
+      ([, indices]) => indices.length > 1
+    );
+    const mergeRowIndexSet = new Set<number>();
+    mergeGroups.forEach(([, indices]) => {
+      indices.forEach((i) => mergeRowIndexSet.add(i));
+    });
+
+    const facilitySummary = mergeGroups.map(([key, indices]) => {
+      const distinctPairs = Array.from(
+        new Set(
+          indices.map((i) => {
+            const r = previewData[i];
+            const fac = normalizeText(r.廠區) || '—';
+            const wa = normalizeText(r.工作區域代號) || fac;
+            return `${fac}／${wa}`;
+          })
+        )
+      );
+      return { key, rowIndices: indices, distinctPairs };
+    });
+
+    return {
+      mergeGroupCount: mergeGroups.length,
+      mergeRowCount: mergeRowIndexSet.size,
+      mergeRowIndexSet,
+      facilitySummary,
+    };
+  }, [previewData]);
+
+  const previewTableRows = useMemo(() => {
+    const base = previewData.map((row, index) => ({ row, index }));
+    let out = base;
+    if (showUnmatchedOnly) {
+      out = out.filter(({ row }) => row.matchStatus === 'unmatched');
+    }
+    if (showMergeCandidatesOnly) {
+      out = out.filter(({ index }) => crossFacilityMergePreview.mergeRowIndexSet.has(index));
+    }
+    return out;
+  }, [previewData, showUnmatchedOnly, showMergeCandidatesOnly, crossFacilityMergePreview]);
+
   // 執行匯入（先匯入、後認領：time_records.task_id 一律為 NULL）
   const handleImport = async () => {
     const missingMappings = getMissingRequiredKeys(headerMap);
@@ -1001,7 +1071,7 @@ export default function UploadPage() {
     setIsImporting(true);
 
     try {
-      // 準備匯入資料（task_id 一律為 null，於裁決中心認領）
+      // 準備匯入資料（task_id 一律為 null，於認領中心指派）
       const importRecords: ImportTimeRecord[] = previewData.map((row) => {
         const recordDate = resolveRecordDate(row);
         const checkInTime = resolveDateTime(row.日期 ?? row.進場時間, row.進場時間);
@@ -1042,8 +1112,13 @@ export default function UploadPage() {
         return;
       }
 
-      const { imported, skipped, errors, skippedNoCheckOut, skippedDuration, skippedDuplicates } =
-        result.data!;
+      const {
+        imported,
+        errors,
+        skippedNoCheckOut,
+        skippedDuration,
+        mergedAsExtraFacilities,
+      } = result.data!;
 
       if (errors.length > 0) {
         console.error('匯入錯誤:', errors);
@@ -1052,15 +1127,16 @@ export default function UploadPage() {
       const skipParts: string[] = [];
       if ((skippedNoCheckOut ?? 0) > 0) skipParts.push(`缺出場時間 ${skippedNoCheckOut} 筆`);
       if ((skippedDuration ?? 0) > 0) skipParts.push(`時長<5分 ${skippedDuration} 筆`);
-      if ((skippedDuplicates ?? 0) > 0) skipParts.push(`重複 ${skippedDuplicates} 筆`);
-      const skipMsg =
-        skipParts.length > 0 ? `，跳過: ${skipParts.join('、')}` : skipped > 0 ? `，跳過: ${skipped} 筆` : '';
+      const mergeCount = mergedAsExtraFacilities ?? 0;
+      const mergeMsg =
+        mergeCount > 0 ? `，跨廠區併入同一邏輯工時 ${mergeCount} 列（已寫入多組廠區／代號）` : '';
+      const skipMsg = skipParts.length > 0 ? `，未寫入: ${skipParts.join('、')}` : '';
 
       toast.success(
-        `匯入完成！成功: ${imported} 筆${skipMsg}${errors.length > 0 ? `，錯誤: ${errors.length} 筆` : ''}`
+        `匯入完成！新建邏輯工時: ${imported} 筆${mergeMsg}${skipMsg}${errors.length > 0 ? `，錯誤: ${errors.length} 筆` : ''}`
       );
 
-      // 導向裁決看板並強制重取資料，避免 Router Cache 顯示舊（空）清單
+      // 導向認領看板並強制重取資料，避免 Router Cache 顯示舊（空）清單
       router.push('/dashboard/billing');
       router.refresh();
     } catch (error) {
@@ -1152,7 +1228,7 @@ export default function UploadPage() {
                         )}
                         {definition.key === '出場時間' && (
                           <p className="mt-1 text-xs text-muted-foreground">
-                            未對應或空值時，該列不會匯入，也不會出現在裁決看板
+                            未對應或空值時，該列不會匯入，也不會出現在認領看板
                           </p>
                         )}
                       </div>
@@ -1162,7 +1238,7 @@ export default function UploadPage() {
                 <div className="mt-4 border-t border-border pt-4">
                   <div className="mb-2 text-sm font-medium">選填欄位對應</div>
                   <p className="mb-3 text-xs text-muted-foreground">
-                    對應後會一併寫入紀錄並顯示於請款裁決看板（未對應則留空）
+                    對應後會一併寫入紀錄並顯示於請款認領看板（未對應則留空）
                   </p>
                   <div className="grid gap-4 md:grid-cols-2">
                     {OPTIONAL_HEADER_DEFINITIONS.map((definition) => (
@@ -1288,15 +1364,67 @@ export default function UploadPage() {
                 </CardContent>
               </Card>
             )}
-            <div className="mb-2 flex items-center gap-2">
-              <Checkbox
-                id="filter-unmatched"
-                checked={showUnmatchedOnly}
-                onCheckedChange={(checked) => setShowUnmatchedOnly(checked === true)}
-              />
-              <Label htmlFor="filter-unmatched" className="cursor-pointer text-sm">
-                僅顯示未匹配人員
-              </Label>
+            {crossFacilityMergePreview.mergeGroupCount > 0 && (
+              <Card className="mb-4 border-sky-200 bg-sky-50/50 dark:border-sky-900 dark:bg-sky-950/30">
+                <CardHeader className="py-3">
+                  <CardTitle className="text-base">跨廠區／工作區代號合併摘要</CardTitle>
+                  <CardDescription>
+                    下列列在員工、日期與進出場時間（與匯入後端 logical key）完全一致，且時長≥5
+                    分鐘、有出場時間；匯入後會合併為{' '}
+                    <span className="font-medium text-foreground">同一筆</span> 邏輯工時，並以多組
+                    （所屬廠區、工作區域代號）保存。
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3 py-3">
+                  <p className="text-sm">
+                    共{' '}
+                    <span className="font-semibold text-foreground">
+                      {crossFacilityMergePreview.mergeGroupCount}
+                    </span>{' '}
+                    組將合併，涉及 Excel{' '}
+                    <span className="font-semibold text-foreground">
+                      {crossFacilityMergePreview.mergeRowCount}
+                    </span>{' '}
+                    列。
+                  </p>
+                  <ul className="max-h-40 list-inside list-disc space-y-1 overflow-y-auto text-sm text-muted-foreground">
+                    {crossFacilityMergePreview.facilitySummary.slice(0, 12).map((g) => (
+                      <li key={g.key}>
+                        {g.rowIndices.length} 列 → 廠區／代號：{g.distinctPairs.join('；')}
+                      </li>
+                    ))}
+                  </ul>
+                  {crossFacilityMergePreview.facilitySummary.length > 12 && (
+                    <p className="text-xs text-muted-foreground">
+                      其餘 {crossFacilityMergePreview.facilitySummary.length - 12} 組請用下方篩選檢視表格。
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="filter-unmatched"
+                  checked={showUnmatchedOnly}
+                  onCheckedChange={(checked) => setShowUnmatchedOnly(checked === true)}
+                />
+                <Label htmlFor="filter-unmatched" className="cursor-pointer text-sm">
+                  僅顯示未匹配人員
+                </Label>
+              </div>
+              {crossFacilityMergePreview.mergeGroupCount > 0 && (
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="filter-merge-candidates"
+                    checked={showMergeCandidatesOnly}
+                    onCheckedChange={(checked) => setShowMergeCandidatesOnly(checked === true)}
+                  />
+                  <Label htmlFor="filter-merge-candidates" className="cursor-pointer text-sm">
+                    僅顯示將合併的列（跨廠區／代號）
+                  </Label>
+                </div>
+              )}
             </div>
             <div className="overflow-x-auto">
               <Table>
@@ -1315,12 +1443,7 @@ export default function UploadPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(showUnmatchedOnly
-                    ? previewData
-                        .map((row, index) => ({ row, index }))
-                        .filter(({ row }) => row.matchStatus === 'unmatched')
-                    : previewData.map((row, index) => ({ row, index }))
-                  ).map(({ row, index }) => (
+                  {previewTableRows.map(({ row, index }) => (
                     <TableRow key={index}>
                       <TableCell>{normalizeText(row.姓名) || '-'}</TableCell>
                       <TableCell>

@@ -8,10 +8,10 @@ import { cn } from '@/lib/utils';
 const navItems = [
   { href: '/dashboard', label: '首頁', icon: LayoutDashboard },
   {
-    section: '請款裁決',
+    section: '請款認領',
     links: [
       { href: '/dashboard/upload', label: '工時匯入', icon: Upload },
-      { href: '/dashboard/billing', label: '裁決看板', icon: Scale },
+      { href: '/dashboard/billing', label: '認領看板', icon: Scale },
     ],
   },
 ] as const;
@@ -39,7 +39,7 @@ export function DashboardNav() {
       </Link>
       <div className="flex flex-col gap-1">
         <span className="px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          請款裁決
+          請款認領
         </span>
         {navItems[1].links.map(({ href, label, icon: Icon }) => {
           const isActive = pathname === href;
