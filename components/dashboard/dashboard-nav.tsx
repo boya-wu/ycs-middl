@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Upload, Scale, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Upload, Scale, ShieldCheck, FolderTree } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navSections = [
@@ -11,6 +11,12 @@ const navSections = [
     links: [
       { href: '/dashboard/upload', label: '工時匯入', icon: Upload },
       { href: '/dashboard/billing', label: '認領看板', icon: Scale },
+    ],
+  },
+  {
+    section: '基礎資料',
+    links: [
+      { href: '/dashboard/projects', label: '專案與任務', icon: FolderTree },
     ],
   },
   {

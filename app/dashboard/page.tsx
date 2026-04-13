@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Upload, Scale, FileSpreadsheet, ShieldCheck } from 'lucide-react';
+import { Upload, Scale, FileSpreadsheet, ShieldCheck, FolderTree } from 'lucide-react';
 
 /**
  * 模組入口首頁 - 平台概念層
@@ -89,6 +89,35 @@ export default function DashboardPage() {
             >
               <ShieldCheck className="mr-1.5 h-4 w-4" />
               開始檢查
+            </Link>
+          </CardFooter>
+        </Card>
+
+        <Card className="flex flex-col">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FolderTree className="h-5 w-5" />
+              專案與任務維護
+            </CardTitle>
+            <CardDescription>
+              管理專案（PY）與任務（SR）的基礎資料
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex-1">
+            <p className="text-sm text-muted-foreground">
+              新增或編輯專案代碼、任務代碼與預算 MD，變更會同步至認領看板的任務列表。
+            </p>
+          </CardContent>
+          <CardFooter>
+            <Link
+              href="/dashboard/projects"
+              className={cn(
+                'inline-flex h-9 items-center justify-center rounded-md px-3 text-sm font-medium transition-colors',
+                'bg-primary text-primary-foreground hover:bg-primary/90'
+              )}
+            >
+              <FolderTree className="mr-1.5 h-4 w-4" />
+              進入維護
             </Link>
           </CardFooter>
         </Card>
