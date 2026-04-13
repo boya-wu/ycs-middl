@@ -156,9 +156,11 @@ export async function ensureStaffProfileFromAuthUser(
       page: 1,
       perPage: 1000,
     });
-    const authUser = listData?.users?.find(
-      (u) => u.email?.toLowerCase() === trimmedEmail.toLowerCase()
-    );
+    const users = (listData?.users ?? []) as Array<{
+      id: string;
+      email?: string | null;
+    }>;
+    const authUser = users.find((u) => u.email?.toLowerCase() === trimmedEmail.toLowerCase());
 
     if (!authUser?.id) {
       return {

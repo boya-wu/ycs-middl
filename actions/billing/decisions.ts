@@ -48,7 +48,10 @@ export async function createBillingDecision(
       };
     }
 
-    const requestedIds = [...new Set(params.time_record_ids)];
+    // 兼容較低的 TS target：避免使用 Set iterator / 展開運算
+    const requestedIds = params.time_record_ids.filter(
+      (id, idx, arr) => arr.indexOf(id) === idx
+    );
     if (requestedIds.length === 0) {
       return { success: false, error: '請至少選擇一筆工時紀錄' };
     }
