@@ -114,7 +114,7 @@ export async function createBillingDecision(
         p_conflict_type: params.conflict_type ?? null,
         p_is_conflict_resolved: params.is_conflict_resolved ?? false,
         p_conflict_resolution_notes: params.conflict_resolution_notes ?? null,
-        p_is_billable: params.is_billable ?? false,
+        p_is_billable: params.is_billable ?? true,
         p_decision_ids_to_deactivate: Array.from(decisionIdsToDeactivate),
         p_task_id: params.task_id,
       }

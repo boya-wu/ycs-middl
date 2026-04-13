@@ -328,6 +328,28 @@ export function DecisionDialog({
                   : ' 未設定'} MD
               </span>
             </div>
+            {(() => {
+              const usedMd = selectedTask?.used_md ?? 0;
+              const parsedFinal = parseFloat(finalMd);
+              const afterMd = !isNaN(parsedFinal) ? usedMd + parsedFinal : usedMd;
+              const budgeted = selectedTask?.budgeted_md;
+              if (budgeted == null || budgeted <= 0) return null;
+              const pct = (afterMd / budgeted) * 100;
+              const barColor = pct > 100 ? 'bg-destructive' : pct >= 80 ? 'bg-amber-500' : 'bg-emerald-500';
+              return (
+                <div className="pt-1 space-y-1">
+                  <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${barColor}`}
+                      style={{ width: `${Math.min(pct, 100)}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-right text-muted-foreground">
+                    {pct.toFixed(0)}% 已使用
+                  </p>
+                </div>
+              );
+            })()}
           </div>
 
           {/* 最終 MD 輸入 */}

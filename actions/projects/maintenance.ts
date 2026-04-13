@@ -26,6 +26,7 @@ export interface TaskRow {
   description: string | null;
   status: string;
   budgeted_md: number | null;
+  used_md: number;
   created_at: string;
   updated_at: string;
 }
@@ -40,20 +41,32 @@ export async function listProjectsWithTasks(): Promise<ActionResult<ProjectWithT
   const supabase = createServerSupabaseClient();
 
   try {
-    const { data, error } = await supabase
-      .from('projects')
-      .select('*, tasks(*)')
-      .order('code', { ascending: true });
+    const [projectRes, summaryRes] = await Promise.all([
+      supabase
+        .from('projects')
+        .select('*, tasks(*)')
+        .order('code', { ascending: true }),
+      supabase
+        .from('task_billing_summary')
+        .select('task_id, used_md'),
+    ]);
 
-    if (error) {
-      throw new Error(`查詢專案列表失敗: ${error.message}`);
+    if (projectRes.error) {
+      throw new Error(`查詢專案列表失敗: ${projectRes.error.message}`);
     }
 
-    const projects = (data ?? []).map((p: any) => ({
+    const usedMdByTaskId = new Map<string, number>();
+    (summaryRes.data ?? []).forEach((row: any) => {
+      if (row.task_id) {
+        usedMdByTaskId.set(row.task_id, Number(row.used_md) || 0);
+      }
+    });
+
+    const projects = (projectRes.data ?? []).map((p: any) => ({
       ...p,
-      tasks: (p.tasks ?? []).sort((a: TaskRow, b: TaskRow) =>
-        a.code.localeCompare(b.code)
-      ),
+      tasks: (p.tasks ?? [])
+        .map((t: any) => ({ ...t, used_md: usedMdByTaskId.get(t.id) ?? 0 }))
+        .sort((a: TaskRow, b: TaskRow) => a.code.localeCompare(b.code)),
     })) as ProjectWithTasks[];
 
     return { success: true, data: projects };

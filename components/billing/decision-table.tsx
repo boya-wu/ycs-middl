@@ -11,6 +11,22 @@ import {
 } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+
+type SortDir = 'asc' | 'desc';
+type SortKey =
+  | 'status'
+  | 'factory_location'
+  | 'staff_employee_no'
+  | 'check_in_time'
+  | 'check_out_time'
+  | 'department_name'
+  | 'staff_name'
+  | 'work_area_code'
+  | 'record_date'
+  | 'task'
+  | 'hours_worked'
+  | 'md';
+
 const pad2 = (n: number) => String(n).padStart(2, '0');
 function formatDate(date: string | Date, formatStr: string): string {
   const d = typeof date === 'string' ? new Date(date) : date;
@@ -35,6 +51,9 @@ interface DecisionTableProps {
   taskLabelById?: Map<string, string>;
   viewMode?: 'before' | 'after' | 'summary';
   canSelect?: boolean;
+  sortKey?: SortKey;
+  sortDir?: SortDir;
+  onSortChange?: (key: SortKey) => void;
 }
 
 /**
@@ -76,6 +95,9 @@ export function DecisionTable({
   taskLabelById,
   viewMode = 'before',
   canSelect = true,
+  sortKey,
+  sortDir,
+  onSortChange,
 }: DecisionTableProps) {
   if (data.length === 0) {
     const emptyMessages: Record<string, string> = {
@@ -90,6 +112,36 @@ export function DecisionTable({
     );
   }
 
+  const renderSortArrow = (key: SortKey) => {
+    if (!sortKey || !sortDir) return null;
+    if (sortKey !== key) return null;
+    return (
+      <span className="text-[10px] text-muted-foreground">
+        {sortDir === 'asc' ? '▲' : '▼'}
+      </span>
+    );
+  };
+
+  const renderSortableHead = (label: string, key: SortKey) => {
+    const isActive = sortKey === key;
+    const ariaSort: 'ascending' | 'descending' | 'none' =
+      isActive && sortDir ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none';
+
+    return (
+      <TableHead aria-sort={ariaSort}>
+        <button
+          type="button"
+          onClick={() => onSortChange?.(key)}
+          className="inline-flex items-center gap-1 rounded-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          title={`點選排序：${label}`}
+        >
+          <span className={isActive ? 'text-foreground' : undefined}>{label}</span>
+          {renderSortArrow(key)}
+        </button>
+      </TableHead>
+    );
+  };
+
   return (
     <div className="overflow-hidden rounded-lg">
       <Table>
@@ -103,18 +155,18 @@ export function DecisionTable({
                 />
               </TableHead>
             )}
-            <TableHead>狀態</TableHead>
-            <TableHead>所屬廠區</TableHead>
-            <TableHead>廠商編號</TableHead>
-            <TableHead>實際入廠日期時間</TableHead>
-            <TableHead>實際出廠日期時間</TableHead>
-            <TableHead>部門名稱</TableHead>
-            <TableHead>廠商姓名</TableHead>
-            <TableHead>工作區域代號</TableHead>
-            <TableHead>日期</TableHead>
-            <TableHead>任務</TableHead>
-            <TableHead>時數</TableHead>
-            <TableHead>MD</TableHead>
+            {renderSortableHead('狀態', 'status')}
+            {renderSortableHead('所屬廠區', 'factory_location')}
+            {renderSortableHead('廠商編號', 'staff_employee_no')}
+            {renderSortableHead('實際入廠日期時間', 'check_in_time')}
+            {renderSortableHead('實際出廠日期時間', 'check_out_time')}
+            {renderSortableHead('部門名稱', 'department_name')}
+            {renderSortableHead('廠商姓名', 'staff_name')}
+            {renderSortableHead('工作區域代號', 'work_area_code')}
+            {renderSortableHead('日期', 'record_date')}
+            {renderSortableHead('任務', 'task')}
+            {renderSortableHead('時數', 'hours_worked')}
+            {renderSortableHead('MD', 'md')}
             {(viewMode === 'after' || viewMode === 'summary') && (
               <TableHead>認領原因</TableHead>
             )}

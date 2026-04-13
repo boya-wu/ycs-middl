@@ -255,7 +255,7 @@ export function ProjectTaskMaintenance({ initialProjects }: ProjectTaskMaintenan
               <TableRow>
                 <TableHead className="w-36">代碼</TableHead>
                 <TableHead>名稱</TableHead>
-                <TableHead className="w-32 text-right">預算 MD</TableHead>
+                <TableHead className="w-44 text-right">MD 進度</TableHead>
                 <TableHead className="w-24">狀態</TableHead>
                 <TableHead className="w-16" />
               </TableRow>
@@ -275,21 +275,40 @@ export function ProjectTaskMaintenance({ initialProjects }: ProjectTaskMaintenan
                   </TableCell>
                 </TableRow>
               )}
-              {selectedProject?.tasks.map((t) => (
-                <TableRow key={t.id}>
-                  <TableCell className="font-mono text-sm">{t.code}</TableCell>
-                  <TableCell>{t.name}</TableCell>
-                  <TableCell className="text-right font-mono">
-                    {t.budgeted_md !== null ? t.budgeted_md.toFixed(2) : '—'}
-                  </TableCell>
-                  <TableCell><StatusBadge status={t.status} /></TableCell>
-                  <TableCell className="px-2">
-                    <Button variant="ghost" size="icon" onClick={() => openEditTask(t)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {selectedProject?.tasks.map((t) => {
+                const hasBudget = t.budgeted_md !== null && t.budgeted_md > 0;
+                const pct = hasBudget ? (t.used_md / t.budgeted_md!) * 100 : 0;
+                const barColor = pct > 100 ? 'bg-destructive' : pct >= 80 ? 'bg-amber-500' : 'bg-emerald-500';
+                return (
+                  <TableRow key={t.id}>
+                    <TableCell className="font-mono text-sm">{t.code}</TableCell>
+                    <TableCell>{t.name}</TableCell>
+                    <TableCell className="text-right">
+                      {t.budgeted_md !== null ? (
+                        <div className="space-y-1">
+                          <span className="font-mono text-sm">
+                            {t.used_md.toFixed(2)} / {t.budgeted_md.toFixed(2)}
+                          </span>
+                          <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${barColor}`}
+                              style={{ width: `${Math.min(pct, 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell><StatusBadge status={t.status} /></TableCell>
+                    <TableCell className="px-2">
+                      <Button variant="ghost" size="icon" onClick={() => openEditTask(t)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>

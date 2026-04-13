@@ -26,6 +26,103 @@ function dedupePendingById(list: PendingBillingDecision[]): PendingBillingDecisi
   });
 }
 
+type SortDir = 'asc' | 'desc';
+type SortKey =
+  | 'status'
+  | 'factory_location'
+  | 'staff_employee_no'
+  | 'check_in_time'
+  | 'check_out_time'
+  | 'department_name'
+  | 'staff_name'
+  | 'work_area_code'
+  | 'record_date'
+  | 'task'
+  | 'hours_worked'
+  | 'md';
+
+function toTimestamp(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const t = new Date(value).getTime();
+  return Number.isFinite(t) ? t : null;
+}
+
+function normalizeString(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const s = value.trim();
+  return s ? s : null;
+}
+
+function suggestedRowMd(hours: number | null | undefined): number | null {
+  const h = Number(hours);
+  if (!Number.isFinite(h) || h <= 0) return null;
+  if (h >= 2) return 1;
+  return 0.5;
+}
+
+function statusRank(item: PendingBillingDecision): number {
+  if (item.has_conflict) return 0; // red
+  if ((item.hours_worked || 0) < 2) return 1; // yellow
+  return 2; // green
+}
+
+function getSortValue(
+  row: PendingBillingDecision,
+  key: SortKey,
+  taskLabelById: Map<string, string>
+): string | number | null {
+  switch (key) {
+    case 'status':
+      return statusRank(row);
+    case 'factory_location':
+      return normalizeString(row.factory_location);
+    case 'staff_employee_no':
+      return normalizeString(row.staff_employee_no);
+    case 'check_in_time':
+      return toTimestamp(row.check_in_time);
+    case 'check_out_time':
+      return toTimestamp(row.check_out_time);
+    case 'department_name':
+      return normalizeString(row.department_name);
+    case 'staff_name':
+      return normalizeString(row.staff_name);
+    case 'work_area_code':
+      return normalizeString(row.work_area_code);
+    case 'record_date':
+      return toTimestamp(row.record_date);
+    case 'task': {
+      if (!row.task_id) return '未認領';
+      return taskLabelById.get(row.task_id) ?? '未知任務';
+    }
+    case 'hours_worked': {
+      const h = Number(row.hours_worked);
+      return Number.isFinite(h) ? h : null;
+    }
+    case 'md': {
+      if (row.final_md != null) return row.final_md;
+      return suggestedRowMd(row.hours_worked);
+    }
+    default:
+      return null;
+  }
+}
+
+function compareSortValues(
+  a: string | number | null,
+  b: string | number | null
+): number {
+  const aEmpty = a == null || a === '';
+  const bEmpty = b == null || b === '';
+  if (aEmpty && bEmpty) return 0;
+  if (aEmpty) return 1; // empty always last
+  if (bEmpty) return -1;
+
+  if (typeof a === 'number' && typeof b === 'number') {
+    return a - b;
+  }
+  return String(a).localeCompare(String(b), 'zh-Hant');
+}
+
 /**
  * 請款認領看板主組件
  * 管理選中的時數紀錄，處理認領流程
@@ -45,6 +142,8 @@ export function BillingDecisionBoard({
   const [isRefreshing, setIsRefreshing] = useState(false);
   /** 認領前＝可認領 | 認領後＝可取消認領 | 總表＝純顯示 */
   const [viewMode, setViewMode] = useState<'before' | 'after' | 'summary'>('before');
+  const [sortKey, setSortKey] = useState<SortKey>('record_date');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
 
   useEffect(() => {
     setData(dedupePendingById(initialData));
@@ -84,6 +183,30 @@ export function BillingDecisionBoard({
     return summaryData;
   }, [viewMode, beforeData, afterData, summaryData]);
 
+  const sortedVisibleData = useMemo(() => {
+    const indexed = visibleData.map((row, idx) => ({ row, idx }));
+    indexed.sort((a, b) => {
+      const av = getSortValue(a.row, sortKey, taskLabelById);
+      const bv = getSortValue(b.row, sortKey, taskLabelById);
+      const base = compareSortValues(av, bv);
+      const directed = sortDir === 'asc' ? base : -base;
+      if (directed !== 0) return directed;
+      return a.idx - b.idx;
+    });
+    return indexed.map((x) => x.row);
+  }, [visibleData, sortKey, sortDir, taskLabelById]);
+
+  const handleSortChange = (nextKey: SortKey) => {
+    setSortKey((prevKey) => {
+      if (prevKey !== nextKey) {
+        setSortDir('asc');
+        return nextKey;
+      }
+      setSortDir((prevDir) => (prevDir === 'asc' ? 'desc' : 'asc'));
+      return prevKey;
+    });
+  };
+
   const canSelect = viewMode !== 'summary';
   const canConfirmDecision = viewMode === 'before';
   const canCancelDecision = viewMode === 'after';
@@ -119,10 +242,10 @@ export function BillingDecisionBoard({
   // 處理全選/取消全選（總表模式不選）
   const handleToggleSelectAll = () => {
     if (!canSelect) return;
-    if (selectedIds.size === visibleData.length) {
+    if (selectedIds.size === sortedVisibleData.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(visibleData.map((item) => item.time_record_id)));
+      setSelectedIds(new Set(sortedVisibleData.map((item) => item.time_record_id)));
     }
   };
 
@@ -273,9 +396,9 @@ export function BillingDecisionBoard({
               <Button
                 variant="outline"
                 onClick={handleToggleSelectAll}
-                disabled={visibleData.length === 0}
+                disabled={sortedVisibleData.length === 0}
               >
-                {selectedIds.size === visibleData.length ? '取消全選' : '全選'}
+                {selectedIds.size === sortedVisibleData.length ? '取消全選' : '全選'}
               </Button>
             )}
             <Button
@@ -307,13 +430,16 @@ export function BillingDecisionBoard({
 
         {/* 資料表格 */}
         <DecisionTable
-          data={visibleData}
+          data={sortedVisibleData}
           selectedIds={selectedIds}
           onToggleSelect={handleToggleSelect}
           onToggleSelectAll={handleToggleSelectAll}
           taskLabelById={taskLabelById}
           viewMode={viewMode}
           canSelect={canSelect}
+          sortKey={sortKey}
+          sortDir={sortDir}
+          onSortChange={handleSortChange}
         />
       </div>
 
