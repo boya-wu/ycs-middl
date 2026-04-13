@@ -7,6 +7,7 @@ alwaysApply: true
 # YCS 技術棧規範
 
 - **框架**: Next.js 14+ (App Router), TypeScript.
+  - **RSC 與 client 資料同步**：Server Component 以 `initialX` 等形式將查詢結果傳入 client 時，列表／主資料應以 **props 為準**，勿用 `useState(initialX)` 將資料固定成僅首次 render 的快照而忽略後續 RSC 更新。若 client 呼叫 Server Action 且 Action 內已 `revalidatePath`，成功後應 **`router.refresh()`**（`next/navigation`）觸發當前路由 RSC 重取，使畫面與後端一致。
 - **UI**: Tailwind CSS, shadcn/ui 風格元件（手動維護，無 `components.json`）, Lucide React, Sonner (Toast)。
   - 必要設定檔：`postcss.config.js` + `tailwind.config.js`（缺一不可，否則 Tailwind class 不生效）。
   - UI 依賴：`@radix-ui/react-popover`, `clsx`, `tailwind-merge`, `lucide-react`, `sonner`, `tailwindcss-animate`。

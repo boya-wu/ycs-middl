@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useLayoutEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -81,7 +81,9 @@ interface ProjectTaskMaintenanceProps {
 // ---------------------------------------------------------------------------
 
 export function ProjectTaskMaintenance({ initialProjects }: ProjectTaskMaintenanceProps) {
+  const router = useRouter();
   const projects = initialProjects;
+
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
     initialProjects[0]?.id ?? null
   );
@@ -92,6 +94,46 @@ export function ProjectTaskMaintenance({ initialProjects }: ProjectTaskMaintenan
 
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<TaskRow | null>(null);
+
+  /** 另一瀏覽器／分頁已變更資料時，此實例的 RSC payload 仍為舊的；在回到此分頁或視窗時 refetch */
+  useEffect(() => {
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    let windowWasBlurred = false;
+
+    const scheduleRefresh = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null;
+        router.refresh();
+      }, 250);
+    };
+
+    const onVis = () => {
+      if (document.visibilityState !== 'visible') return;
+      scheduleRefresh();
+    };
+
+    const onBlur = () => {
+      windowWasBlurred = true;
+    };
+
+    const onFocus = () => {
+      if (!windowWasBlurred) return;
+      windowWasBlurred = false;
+      scheduleRefresh();
+    };
+
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('blur', onBlur);
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('blur', onBlur);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [router]);
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId) ?? null;
 
@@ -293,21 +335,23 @@ function ProjectDialog({
   const [status, setStatus] = useState('active');
   const [isPending, startTransition] = useTransition();
 
-  // 每次開啟時重設表單
-  const handleOpenChange = (v: boolean) => {
-    if (v && editing) {
+  // 受控 open 時 Radix 不會對「由父層設為 true」呼叫 onOpenChange(true)，改以 layout effect 同步表單
+  useLayoutEffect(() => {
+    if (!open) return;
+    if (editing) {
       setCode(editing.code);
       setName(editing.name);
       setDescription(editing.description ?? '');
       setStatus(editing.status);
-    } else if (v) {
+    } else {
       setCode('');
       setName('');
       setDescription('');
       setStatus('active');
     }
-    onOpenChange(v);
-  };
+    // 僅依 open 與編輯列 id；避免 editing 參考每次 render 變動而清空使用者輸入
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 同步當次 render 的 editing 內容
+  }, [open, editing?.id]);
 
   function handleSubmit() {
     startTransition(async () => {
@@ -326,7 +370,7 @@ function ProjectDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[440px]">
         <DialogHeader>
           <DialogTitle>{isEdit ? '編輯專案' : '新增專案'}</DialogTitle>
@@ -394,22 +438,23 @@ function TaskDialog({
   const [status, setStatus] = useState('active');
   const [isPending, startTransition] = useTransition();
 
-  const handleOpenChange = (v: boolean) => {
-    if (v && editing) {
+  useLayoutEffect(() => {
+    if (!open) return;
+    if (editing) {
       setCode(editing.code);
       setName(editing.name);
       setDescription(editing.description ?? '');
       setBudgetedMd(editing.budgeted_md !== null ? String(editing.budgeted_md) : '');
       setStatus(editing.status);
-    } else if (v) {
+    } else {
       setCode('');
       setName('');
       setDescription('');
       setBudgetedMd('');
       setStatus('active');
     }
-    onOpenChange(v);
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 同步當次 render 的 editing 內容
+  }, [open, editing?.id]);
 
   function handleSubmit() {
     const parsedMd = budgetedMd.trim() === '' ? null : parseFloat(budgetedMd);
@@ -434,7 +479,7 @@ function TaskDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[440px]">
         <DialogHeader>
           <DialogTitle>{isEdit ? '編輯任務' : `新增任務（${projectCode}）`}</DialogTitle>
