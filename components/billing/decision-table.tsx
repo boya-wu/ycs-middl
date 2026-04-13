@@ -91,7 +91,7 @@ export function DecisionTable({
   }
 
   return (
-    <div className="rounded-lg border">
+    <div className="overflow-hidden rounded-lg">
       <Table>
         <TableHeader>
           <TableRow>

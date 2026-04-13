@@ -2,6 +2,8 @@
 
 這份文件補充 `.cursor/rules/supabase-migration-workflow.mdc`，納入 **Full baseline**、**簽章比對** 與 **`consolidated_schema.sql` 自動重產**，避免 snapshot 與真實 DB 漂移。
 
+**相關**：Cursor 連本機 Supabase MCP 若出現 Streamable HTTP 失敗、SSE **405**，多為 MCP URL 設成 `54321/mcp` 所致；正確為 Studio **`54323/api/mcp`**。見 [`docs/cursor-supabase-mcp.md`](./cursor-supabase-mcp.md)。
+
 ## 目標
 
 1. 將遠端 `public` 結構可重現地固化（Baseline，含 Function／Trigger／RLS／GRANT）。
