@@ -377,11 +377,14 @@ CREATE OR REPLACE VIEW "public"."decided_billing_decisions_summary" AS
     "bd"."reason",
     ( SELECT ("count"(*))::integer AS "count"
            FROM "public"."time_record_facility_workarea" "m"
-          WHERE ("m"."time_record_id" = "tr"."id")) AS "facility_mapping_count"
-   FROM ((("public"."time_records" "tr"
+          WHERE ("m"."time_record_id" = "tr"."id")) AS "facility_mapping_count",
+    "bd"."decision_maker_id",
+    "dm"."name" AS "decision_maker_name"
+   FROM (((("public"."time_records" "tr"
      JOIN "public"."billing_decision_records" "bdr" ON ((("tr"."id" = "bdr"."time_record_id") AND ("bdr"."is_active" = true))))
      JOIN "public"."billing_decisions" "bd" ON ((("bdr"."billing_decision_id" = "bd"."id") AND ("bd"."is_active" = true))))
      LEFT JOIN "public"."staff_profiles" "sp" ON (("tr"."staff_id" = "sp"."id")))
+     LEFT JOIN "public"."staff_profiles" "dm" ON (("bd"."decision_maker_id" = "dm"."id")))
   WHERE ("tr"."check_out_time" IS NOT NULL);
 
 

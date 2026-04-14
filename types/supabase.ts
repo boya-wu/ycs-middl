@@ -585,6 +585,8 @@ export type Database = {
           billing_decision_id: string | null
           check_in_time: string | null
           check_out_time: string | null
+          decision_maker_id: string | null
+          decision_maker_name: string | null
           decision_type: string | null
           department_name: string | null
           facility_mapping_count: number | null
@@ -606,6 +608,13 @@ export type Database = {
           work_area_code: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "billing_decisions_decision_maker_id_fkey"
+            columns: ["decision_maker_id"]
+            isOneToOne: false
+            referencedRelation: "staff_profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "time_records_staff_id_fkey"
             columns: ["staff_id"]

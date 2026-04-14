@@ -52,11 +52,39 @@ npm run supabase:truncate
 
 `DATABASE_URL` 預設可對齊 `.env.example`（本機 Postgres 埠請以 `supabase/config.toml` 的 `[db] port` 為準，目前為 `54322`）。
 
+#### 工號登入（過渡期）所需密鑰
+
+本專案的工號登入使用簽章 Cookie（JWT）作為工作階段；伺服器端需設定密鑰以簽署/驗證 Cookie，避免被偽造。
+
+在 `.env.local` 加入：
+
+```bash
+YCS_SESSION_SECRET="至少 32 字元的隨機字串（僅伺服器端使用，勿加 NEXT_PUBLIC_）"
+```
+
+建議用 Git Bash 產生（擇一）：
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+```
+
+注意：更換 `YCS_SESSION_SECRET` 會使既有登入 Cookie 全部失效（需要重新登入）。
+
 ### 開發伺服器
 
 ```bash
 npm run dev
 ```
+
+### 讓同事從區網連到你電腦（建議用 Production 模式）
+
+同事只是用瀏覽器連線，不需要也不應該取得你的 `.env.local`；你只要在「架站那台電腦」設定好環境變數並啟動伺服器即可。
+
+```bash
+npm run build && npm run start
+```
+
+接著讓同事以你的電腦 IP 連線（例如 `http://<你的IP>:3000`）。
 
 ### 可選：連 Docker 狀態一併重來
 

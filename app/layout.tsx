@@ -3,7 +3,7 @@ import { Toaster } from 'sonner';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'YCS - 內部中介層',
+  title: 'NSF - middl',
   description: '公司內部中介層與工具平台',
 };
 

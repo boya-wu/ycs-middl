@@ -25,7 +25,8 @@ type SortKey =
   | 'record_date'
   | 'task'
   | 'hours_worked'
-  | 'md';
+  | 'md'
+  | 'decision_maker_name';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 function formatDate(date: string | Date, formatStr: string): string {
@@ -151,7 +152,7 @@ export function DecisionTable({
               <TableHead className="w-12">
                 <Checkbox
                   checked={selectedIds.size === data.length && data.length > 0}
-                  onChange={() => onToggleSelectAll?.()}
+                  onCheckedChange={() => onToggleSelectAll?.()}
                 />
               </TableHead>
             )}
@@ -169,6 +170,9 @@ export function DecisionTable({
             {renderSortableHead('MD', 'md')}
             {(viewMode === 'after' || viewMode === 'summary') && (
               <TableHead>認領原因</TableHead>
+            )}
+            {(viewMode === 'after' || viewMode === 'summary') && (
+              renderSortableHead('認領人員', 'decision_maker_name')
             )}
             <TableHead>備註</TableHead>
           </TableRow>
@@ -252,6 +256,9 @@ export function DecisionTable({
                   <TableCell className="max-w-[200px] truncate" title={item.reason ?? undefined}>
                     {item.reason ?? '-'}
                   </TableCell>
+                )}
+                {(viewMode === 'after' || viewMode === 'summary') && (
+                  <TableCell>{item.decision_maker_name ?? '-'}</TableCell>
                 )}
                 <TableCell className="text-muted-foreground">
                   {item.has_conflict && '⚠️ 衝突'}

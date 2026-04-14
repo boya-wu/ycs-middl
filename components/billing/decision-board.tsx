@@ -39,7 +39,8 @@ type SortKey =
   | 'record_date'
   | 'task'
   | 'hours_worked'
-  | 'md';
+  | 'md'
+  | 'decision_maker_name';
 
 function toTimestamp(value: string | null | undefined): number | null {
   if (!value) return null;
@@ -102,6 +103,8 @@ function getSortValue(
       if (row.final_md != null) return row.final_md;
       return suggestedRowMd(row.hours_worked);
     }
+    case 'decision_maker_name':
+      return normalizeString(row.decision_maker_name);
     default:
       return null;
   }

@@ -164,8 +164,13 @@ export async function importTimeRecords(
 
         // 階段 B：查詢本批所有 canonical time_record id
         // 使用 staff_id + record_date 範圍查詢，再以完整 logical key 在 JS 端精確比對
-        const staffIds = [...new Set(chunk.map((r) => r.staff_id))];
-        const dates = [...new Set(chunk.map((r) => r.record_date))];
+        // 兼容較低的 TS target：避免使用 Set iterator / 展開運算
+        const staffIds = chunk
+          .map((r) => r.staff_id)
+          .filter((id, idx, arr) => arr.indexOf(id) === idx);
+        const dates = chunk
+          .map((r) => r.record_date)
+          .filter((d, idx, arr) => arr.indexOf(d) === idx);
 
         const { data: canonicalRows, error: selectError } = await supabase
           .from('time_records')

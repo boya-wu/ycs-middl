@@ -18,7 +18,7 @@ export default async function ProjectsPage() {
       <div className="container mx-auto p-6">
         <div className="rounded-lg border border-red-200 bg-red-50 p-4">
           <h2 className="text-lg font-semibold text-red-800">載入錯誤</h2>
-          <p className="text-red-600">{result.error}</p>
+          <p className="text-red-600">{'error' in result ? result.error : '載入失敗'}</p>
         </div>
       </div>
     );

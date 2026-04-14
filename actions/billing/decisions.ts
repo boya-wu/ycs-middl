@@ -2,6 +2,7 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { getSession } from '@/lib/auth/session';
 
 /**
  * 建立計費認領的參數介面
@@ -14,7 +15,6 @@ export interface CreateBillingDecisionParams {
   recommended_md?: number;
   is_forced_md?: boolean;
   reason?: string;
-  decision_maker_id?: string;
   has_conflict?: boolean;
   conflict_type?: string;
   is_conflict_resolved?: boolean;
@@ -37,6 +37,11 @@ export interface CreateBillingDecisionParams {
 export async function createBillingDecision(
   params: CreateBillingDecisionParams
 ) {
+  const session = await getSession();
+  if (!session) {
+    return { success: false, error: '請先登入' };
+  }
+
   const supabase = createServerSupabaseClient();
 
   try {
@@ -109,7 +114,7 @@ export async function createBillingDecision(
         p_recommended_md: params.recommended_md ?? null,
         p_is_forced_md: params.is_forced_md ?? false,
         p_reason: params.reason ?? null,
-        p_decision_maker_id: params.decision_maker_id ?? null,
+        p_decision_maker_id: session.staffId,
         p_has_conflict: params.has_conflict ?? false,
         p_conflict_type: params.conflict_type ?? null,
         p_is_conflict_resolved: params.is_conflict_resolved ?? false,

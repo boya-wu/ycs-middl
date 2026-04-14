@@ -31,6 +31,10 @@ export interface PendingBillingDecision {
   work_area_code: string | null;
   /** time_record_facility_workarea 筆數；>1 時應顯示跨廠區／多組代號（與 STRING_AGG 逗號無關） */
   facility_mapping_count?: number | null;
+  /** 認領人 staff_profiles.id（僅 decided view 有值） */
+  decision_maker_id?: string | null;
+  /** 認領人姓名（僅 decided view 有值） */
+  decision_maker_name?: string | null;
 }
 
 /**

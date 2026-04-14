@@ -2,6 +2,7 @@
 description: 確保認領層 (Decision Layer) 不被繞過
 globs:
   - "actions/**"
+  - "lib/auth/**"
   - "lib/database/**"
   - "app/api/**"
 ---
@@ -18,5 +19,8 @@ globs:
   - `billing_decision_records` 必須保存 `is_active` 快照欄位，並以 Trigger 與 `billing_decisions.is_active` 同步。
   - 必須建立 `UNIQUE(time_record_id) WHERE is_active = TRUE` 的 Partial Unique Index。
   - 禁止硬刪關聯紀錄，以保留完整認領歷史與審計軌跡。
+- **認領人身分審計**：
+  - `billing_decisions.decision_maker_id`（對應 `staff_profiles.id`）必須在 **Server Action** 依伺服端工作階段寫入 RPC／INSERT。
+  - 禁止信任客戶端傳入的認領人 ID；Middleware 驗證 Cookie 後，寫入前仍須在 Action 內再次取得工作階段。
 - **費率管理 (Rate Management)**：
   - 系統必須支援 `project_rates` 年度費率表，禁止在請款單中手動輸入無來源的單價。

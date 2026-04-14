@@ -379,7 +379,7 @@ function ProjectDialog({
         : await createProject({ code, name, description });
 
       if (!result.success) {
-        toast.error(result.error);
+        toast.error('error' in result ? result.error : '操作失敗');
         return;
       }
       toast.success(isEdit ? '專案已更新' : '專案已新增');
@@ -488,7 +488,7 @@ function TaskDialog({
         : await createTask({ project_id: projectId, code, name, description, budgeted_md: parsedMd });
 
       if (!result.success) {
-        toast.error(result.error);
+        toast.error('error' in result ? result.error : '操作失敗');
         return;
       }
       toast.success(isEdit ? '任務已更新' : '任務已新增');
