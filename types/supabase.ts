@@ -1,4 +1,3 @@
-Connecting to db 5432
 export type Json =
   | string
   | number
@@ -232,6 +231,84 @@ export type Database = {
           },
         ]
       }
+      pip_inspection_records: {
+        Row: {
+          created_at: string
+          factory_location: string
+          id: string
+          inspection_datetime: string
+          location_io_room: boolean
+          location_tgcm: boolean
+          pip_checked_pants_pocket: boolean
+          pip_checked_red_card: boolean
+          pip_checked_upper_pocket: boolean
+          pip_no_electronic: boolean
+          pip_no_phone: boolean
+          pip_no_usb: boolean
+          pm_confirmed_at: string | null
+          pm_staff_id: string | null
+          staff_id: string | null
+          staff_name: string
+          vendor_no: string
+          work_content: string
+        }
+        Insert: {
+          created_at?: string
+          factory_location: string
+          id?: string
+          inspection_datetime: string
+          location_io_room?: boolean
+          location_tgcm?: boolean
+          pip_checked_pants_pocket?: boolean
+          pip_checked_red_card?: boolean
+          pip_checked_upper_pocket?: boolean
+          pip_no_electronic?: boolean
+          pip_no_phone?: boolean
+          pip_no_usb?: boolean
+          pm_confirmed_at?: string | null
+          pm_staff_id?: string | null
+          staff_id?: string | null
+          staff_name: string
+          vendor_no: string
+          work_content: string
+        }
+        Update: {
+          created_at?: string
+          factory_location?: string
+          id?: string
+          inspection_datetime?: string
+          location_io_room?: boolean
+          location_tgcm?: boolean
+          pip_checked_pants_pocket?: boolean
+          pip_checked_red_card?: boolean
+          pip_checked_upper_pocket?: boolean
+          pip_no_electronic?: boolean
+          pip_no_phone?: boolean
+          pip_no_usb?: boolean
+          pm_confirmed_at?: string | null
+          pm_staff_id?: string | null
+          staff_id?: string | null
+          staff_name?: string
+          vendor_no?: string
+          work_content?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pip_inspection_records_pm_staff_id_fkey"
+            columns: ["pm_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pip_inspection_records_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_rates: {
         Row: {
           created_at: string
@@ -302,29 +379,44 @@ export type Database = {
       }
       staff_profiles: {
         Row: {
+          card_no: string | null
           created_at: string
+          department: string | null
           email: string
           employee_no: string | null
           id: string
+          job_title: string | null
+          mobile_phone: string | null
           name: string
+          name_en: string | null
           updated_at: string
           user_id: string | null
         }
         Insert: {
+          card_no?: string | null
           created_at?: string
+          department?: string | null
           email: string
           employee_no?: string | null
           id?: string
+          job_title?: string | null
+          mobile_phone?: string | null
           name: string
+          name_en?: string | null
           updated_at?: string
           user_id?: string | null
         }
         Update: {
+          card_no?: string | null
           created_at?: string
+          department?: string | null
           email?: string
           employee_no?: string | null
           id?: string
+          job_title?: string | null
+          mobile_phone?: string | null
           name?: string
+          name_en?: string | null
           updated_at?: string
           user_id?: string | null
         }
@@ -495,6 +587,7 @@ export type Database = {
           check_out_time: string | null
           decision_type: string | null
           department_name: string | null
+          facility_mapping_count: number | null
           factory_location: string | null
           final_md: number | null
           has_conflict: boolean | null
@@ -503,15 +596,14 @@ export type Database = {
           is_billable: boolean | null
           is_conflict_resolved: boolean | null
           merged_total_hours: number | null
-          record_date: string | null
           reason: string | null
+          record_date: string | null
           staff_employee_no: string | null
           staff_id: string | null
           staff_name: string | null
           task_id: string | null
           time_record_id: string | null
           work_area_code: string | null
-          facility_mapping_count: number | null
         }
         Relationships: [
           {
@@ -537,8 +629,8 @@ export type Database = {
           check_out_time: string | null
           decision_type: string | null
           department_name: string | null
-          factory_location: string | null
           facility_mapping_count: number | null
+          factory_location: string | null
           final_md: number | null
           has_conflict: boolean | null
           has_decision: boolean | null
@@ -626,6 +718,12 @@ export type Database = {
           p_time_record_ids: string[]
         }
         Returns: Json
+      }
+      pip_distinct_factory_locations: {
+        Args: never
+        Returns: {
+          factory_location: string
+        }[]
       }
     }
     Enums: {

@@ -455,7 +455,7 @@ export default function UploadPage() {
   const [headerSignature, setHeaderSignature] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  /** 匯入 session：同一匯入流程內，姓名 → 已匹配的 staff（建立或手動選擇後同步同名稱所有行，不寫入 DB） */
+  /** 匯入 session：同一匯入流程內，姓名 → 已匹配的 staff（建立人員後同步同名稱所有行，不寫入 DB） */
   const [importSessionState, setImportSessionState] = useState<
     Record<string, { staffId: string; staffName: string }>
   >({});
@@ -678,29 +678,6 @@ export default function UploadPage() {
     return list;
   }, [previewData]);
 
-  /** 全域同步：依 Excel 姓名將所有同名列一併更新為指定 staff（摘要區或表格選擇後共用） */
-  const handleGlobalStaffSync = (excelName: ExcelCell, staffId: string) => {
-    const staff = staffProfiles.find((s) => s.id === staffId);
-    if (!staff) return;
-    const key = nameKey(excelName);
-    if (!key) return;
-    setImportSessionState((prev) => ({
-      ...prev,
-      [key]: { staffId: staff.id, staffName: staff.name },
-    }));
-    setPreviewData((prev) =>
-      prev.map((r) =>
-        nameKey(r.姓名) === key
-          ? {
-              ...r,
-              matchedStaffId: staff.id,
-              matchedStaffName: staff.name,
-              matchStatus: 'manual',
-            }
-          : r
-      )
-    );
-  };
 
   /** 未匹配行的「建立人員」Popover 是否開啟（由列 index 控制） */
   const [createStaffPopoverIndex, setCreateStaffPopoverIndex] = useState<number | null>(null);
@@ -1179,7 +1156,7 @@ export default function UploadPage() {
           <CardHeader>
             <CardTitle>預覽資料</CardTitle>
             <CardDescription>
-              請確認人員匹配是否正確，如有未匹配的資料請手動選擇
+              請確認人員匹配是否正確，未匹配的資料請參考上方摘要處理
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -1277,7 +1254,7 @@ export default function UploadPage() {
                 <CardHeader className="py-3">
                   <CardTitle className="text-base">未匹配人員摘要</CardTitle>
                   <CardDescription>
-                    以下姓名尚未對應到系統人員。可「手動選擇」既有人員，或填寫 Email／工號後按「批次建立」一次建立；表格中同姓名列會一併更新
+                    以下姓名尚未對應到系統人員。建議先至「基礎資料 &gt; 人員名冊」匯入最新名冊，或填寫 Email／工號後按「批次建立」。表格中同姓名列會一併更新
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="py-3">
@@ -1288,7 +1265,6 @@ export default function UploadPage() {
                           <TableHead className="w-28">姓名</TableHead>
                           <TableHead className="min-w-[200px]">Email（建立用）</TableHead>
                           <TableHead className="min-w-[100px]">工號（選填）</TableHead>
-                          <TableHead className="w-44">或手動選擇</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1327,23 +1303,6 @@ export default function UploadPage() {
                                   }
                                   className="h-8 bg-background"
                                 />
-                              </TableCell>
-                              <TableCell>
-                                <Select
-                                  value=""
-                                  onChange={(e) => {
-                                    const id = e.target.value;
-                                    if (id) handleGlobalStaffSync(excelName, id);
-                                  }}
-                                  className="h-8 w-full bg-background"
-                                >
-                                  <option value="" className="bg-background">選擇既有人員...</option>
-                                  {staffProfiles.map((staff) => (
-                                    <option key={staff.id} value={staff.id} className="bg-background">
-                                      {staff.name}
-                                    </option>
-                                  ))}
-                                </Select>
                               </TableCell>
                             </TableRow>
                           );
@@ -1439,7 +1398,6 @@ export default function UploadPage() {
                     <TableHead>進場時間</TableHead>
                     <TableHead>出場時間</TableHead>
                     <TableHead>匹配狀態</TableHead>
-                    <TableHead>手動選擇</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1464,7 +1422,7 @@ export default function UploadPage() {
                           <span className="text-green-600">✓ 已匹配: {row.matchedStaffName}</span>
                         )}
                         {row.matchStatus === 'manual' && (
-                          <span className="text-blue-600">✓ 手動選擇: {row.matchedStaffName}</span>
+                          <span className="text-blue-600">✓ 已對應: {row.matchedStaffName}</span>
                         )}
                         {row.matchStatus === 'unmatched' && (
                           <div className="flex items-center gap-2">
@@ -1480,29 +1438,6 @@ export default function UploadPage() {
                             />
                           </div>
                         )}
-                      </TableCell>
-                      <TableCell className="bg-background">
-                        <Select
-                          value={row.matchedStaffId || ''}
-                          onChange={(e) => {
-                            const id = e.target.value;
-                            if (id) handleGlobalStaffSync(row.姓名, id);
-                          }}
-                          className="bg-background"
-                        >
-                          <option value="" className="bg-background">
-                            請選擇...
-                          </option>
-                          {staffProfiles.map((staff) => (
-                            <option
-                              key={staff.id}
-                              value={staff.id}
-                              className="bg-background text-foreground"
-                            >
-                              {staff.name}
-                            </option>
-                          ))}
-                        </Select>
                       </TableCell>
                     </TableRow>
                   ))}

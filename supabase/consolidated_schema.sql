@@ -38,26 +38,17 @@ $$;
 ALTER FUNCTION "public"."calculate_hours_worked"() OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."create_billing_decision_transaction"("p_time_record_ids" "uuid"[], "p_decision_type" "text", "p_final_md" numeric, "p_recommended_md" numeric DEFAULT NULL::numeric, "p_is_forced_md" boolean DEFAULT false, "p_reason" "text" DEFAULT NULL::"text", "p_decision_maker_id" "uuid" DEFAULT NULL::"uuid", "p_has_conflict" boolean DEFAULT false, "p_conflict_type" "text" DEFAULT NULL::"text", "p_is_conflict_resolved" boolean DEFAULT false, "p_conflict_resolution_notes" "text" DEFAULT NULL::"text", "p_is_billable" boolean DEFAULT false, "p_decision_ids_to_deactivate" "uuid"[] DEFAULT ARRAY[]::"uuid"[], "p_task_id" "uuid" DEFAULT NULL::"uuid") RETURNS "jsonb"
+CREATE OR REPLACE FUNCTION "public"."create_billing_decision_transaction"("p_time_record_ids" "uuid"[], "p_decision_type" "text", "p_final_md" numeric, "p_recommended_md" numeric DEFAULT NULL::numeric, "p_is_forced_md" boolean DEFAULT false, "p_reason" "text" DEFAULT NULL::"text", "p_decision_maker_id" "uuid" DEFAULT NULL::"uuid", "p_has_conflict" boolean DEFAULT false, "p_conflict_type" "text" DEFAULT NULL::"text", "p_is_conflict_resolved" boolean DEFAULT false, "p_conflict_resolution_notes" "text" DEFAULT NULL::"text", "p_is_billable" boolean DEFAULT true, "p_decision_ids_to_deactivate" "uuid"[] DEFAULT ARRAY[]::"uuid"[], "p_task_id" "uuid" DEFAULT NULL::"uuid") RETURNS "jsonb"
     LANGUAGE "plpgsql"
     AS $$
 DECLARE
     v_new_decision_id UUID;
     v_deactivated_count INTEGER;
     v_updated_count INTEGER;
-    v_distinct_count INTEGER;
     v_result JSONB;
 BEGIN
     IF p_task_id IS NULL THEN
         RAISE EXCEPTION '請先選擇專案任務';
-    END IF;
-
-    -- 傳入陣列可能含重複 ID（例如同一筆在畫面上被選兩次），以不重複數量為準
-    SELECT count(*) INTO v_distinct_count
-    FROM (SELECT DISTINCT unnest(p_time_record_ids) AS id) t;
-
-    IF v_distinct_count = 0 THEN
-        RAISE EXCEPTION '請至少選擇一筆工時紀錄';
     END IF;
 
     -- 步驟 1: 停用舊的 active decisions
@@ -80,9 +71,8 @@ BEGIN
     WHERE id = ANY(p_time_record_ids);
 
     GET DIAGNOSTICS v_updated_count = ROW_COUNT;
-    -- 以「不重複 ID 數量」比較，避免重複 ID 造成誤判
-    IF v_updated_count <> v_distinct_count THEN
-        RAISE EXCEPTION '部分工時紀錄不存在或已被刪除（已更新 % 筆，請求 % 筆）。請重新整理頁面後再試。', v_updated_count, v_distinct_count;
+    IF v_updated_count <> array_length(p_time_record_ids, 1) THEN
+        RAISE EXCEPTION '部分工時紀錄不存在或已被刪除';
     END IF;
 
     -- 步驟 3: 建立新的 billing_decision
@@ -115,7 +105,7 @@ BEGIN
     )
     RETURNING id INTO v_new_decision_id;
 
-    -- 步驟 4: 建立 billing_decision_records（unnest 含重複時 ON CONFLICT DO NOTHING 會略過重複）
+    -- 步驟 4: 建立 billing_decision_records
     INSERT INTO billing_decision_records (
         billing_decision_id,
         time_record_id
@@ -125,11 +115,12 @@ BEGIN
         unnest(p_time_record_ids)
     ON CONFLICT (billing_decision_id, time_record_id) DO NOTHING;
 
+    -- 返回結果
     v_result := jsonb_build_object(
         'billing_decision_id', v_new_decision_id,
         'deactivated_count', v_deactivated_count,
         'records_updated', v_updated_count,
-        'records_created', v_distinct_count
+        'records_created', array_length(p_time_record_ids, 1)
     );
 
     RETURN v_result;
@@ -137,12 +128,32 @@ EXCEPTION
     WHEN unique_violation THEN
         RAISE EXCEPTION '此段工時已被其他專案認領';
     WHEN OTHERS THEN
+        -- 發生錯誤時自動回滾（Postgres Transaction 特性）
         RAISE EXCEPTION '建立計費裁決時發生錯誤: %', SQLERRM;
 END;
 $$;
 
 
 ALTER FUNCTION "public"."create_billing_decision_transaction"("p_time_record_ids" "uuid"[], "p_decision_type" "text", "p_final_md" numeric, "p_recommended_md" numeric, "p_is_forced_md" boolean, "p_reason" "text", "p_decision_maker_id" "uuid", "p_has_conflict" boolean, "p_conflict_type" "text", "p_is_conflict_resolved" boolean, "p_conflict_resolution_notes" "text", "p_is_billable" boolean, "p_decision_ids_to_deactivate" "uuid"[], "p_task_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."pip_distinct_factory_locations"() RETURNS TABLE("factory_location" "text")
+    LANGUAGE "sql" STABLE
+    SET "search_path" TO 'public'
+    AS $$
+  SELECT DISTINCT tr.factory_location
+  FROM time_records tr
+  WHERE tr.factory_location IS NOT NULL
+    AND btrim(tr.factory_location) <> ''
+  ORDER BY 1;
+$$;
+
+
+ALTER FUNCTION "public"."pip_distinct_factory_locations"() OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."pip_distinct_factory_locations"() IS '供 PIP 自我檢查表單載入廠區選項（與既有工時紀錄一致）';
+
 
 
 CREATE OR REPLACE FUNCTION "public"."set_bdr_is_active_from_decision"() RETURNS "trigger"
@@ -225,7 +236,7 @@ CREATE TABLE IF NOT EXISTS "public"."billing_decisions" (
     "conflict_type" "text",
     "is_conflict_resolved" boolean DEFAULT false NOT NULL,
     "conflict_resolution_notes" "text",
-    "is_billable" boolean DEFAULT false NOT NULL,
+    "is_billable" boolean DEFAULT true NOT NULL,
     "is_active" boolean DEFAULT true NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
@@ -242,7 +253,12 @@ CREATE TABLE IF NOT EXISTS "public"."staff_profiles" (
     "email" "text" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "employee_no" "text"
+    "employee_no" "text",
+    "name_en" "text",
+    "department" "text",
+    "job_title" "text",
+    "mobile_phone" "text",
+    "card_no" "text"
 );
 
 
@@ -250,6 +266,26 @@ ALTER TABLE "public"."staff_profiles" OWNER TO "postgres";
 
 
 COMMENT ON COLUMN "public"."staff_profiles"."employee_no" IS '工號（選填）';
+
+
+
+COMMENT ON COLUMN "public"."staff_profiles"."name_en" IS '英文姓名';
+
+
+
+COMMENT ON COLUMN "public"."staff_profiles"."department" IS '部門碼（含部門名稱）';
+
+
+
+COMMENT ON COLUMN "public"."staff_profiles"."job_title" IS '職稱';
+
+
+
+COMMENT ON COLUMN "public"."staff_profiles"."mobile_phone" IS '公務手機';
+
+
+
+COMMENT ON COLUMN "public"."staff_profiles"."card_no" IS '紅卡卡號';
 
 
 
@@ -338,7 +374,10 @@ CREATE OR REPLACE VIEW "public"."decided_billing_decisions_summary" AS
     COALESCE(( SELECT "string_agg"(DISTINCT "m"."work_area_code", ', '::"text" ORDER BY "m"."work_area_code") AS "string_agg"
            FROM "public"."time_record_facility_workarea" "m"
           WHERE ("m"."time_record_id" = "tr"."id")), COALESCE(NULLIF("btrim"("tr"."work_area_code"), ''::"text"), "tr"."factory_location")) AS "work_area_code",
-    "bd"."reason"
+    "bd"."reason",
+    ( SELECT ("count"(*))::integer AS "count"
+           FROM "public"."time_record_facility_workarea" "m"
+          WHERE ("m"."time_record_id" = "tr"."id")) AS "facility_mapping_count"
    FROM ((("public"."time_records" "tr"
      JOIN "public"."billing_decision_records" "bdr" ON ((("tr"."id" = "bdr"."time_record_id") AND ("bdr"."is_active" = true))))
      JOIN "public"."billing_decisions" "bd" ON ((("bdr"."billing_decision_id" = "bd"."id") AND ("bd"."is_active" = true))))
@@ -347,6 +386,10 @@ CREATE OR REPLACE VIEW "public"."decided_billing_decisions_summary" AS
 
 
 ALTER VIEW "public"."decided_billing_decisions_summary" OWNER TO "postgres";
+
+
+COMMENT ON COLUMN "public"."decided_billing_decisions_summary"."facility_mapping_count" IS 'time_record_facility_workarea 對應筆數；>1 表示多組廠區／代號 mapping';
+
 
 
 CREATE TABLE IF NOT EXISTS "public"."final_billings" (
@@ -396,7 +439,10 @@ CREATE OR REPLACE VIEW "public"."pending_billing_decisions_summary" AS
     "tr"."department_name",
     COALESCE(( SELECT "string_agg"(DISTINCT "m"."work_area_code", ', '::"text" ORDER BY "m"."work_area_code") AS "string_agg"
            FROM "public"."time_record_facility_workarea" "m"
-          WHERE ("m"."time_record_id" = "tr"."id")), COALESCE(NULLIF("btrim"("tr"."work_area_code"), ''::"text"), "tr"."factory_location")) AS "work_area_code"
+          WHERE ("m"."time_record_id" = "tr"."id")), COALESCE(NULLIF("btrim"("tr"."work_area_code"), ''::"text"), "tr"."factory_location")) AS "work_area_code",
+    ( SELECT ("count"(*))::integer AS "count"
+           FROM "public"."time_record_facility_workarea" "m"
+          WHERE ("m"."time_record_id" = "tr"."id")) AS "facility_mapping_count"
    FROM ((("public"."time_records" "tr"
      LEFT JOIN "public"."billing_decision_records" "bdr" ON ((("tr"."id" = "bdr"."time_record_id") AND ("bdr"."is_active" = true))))
      LEFT JOIN "public"."billing_decisions" "bd" ON ((("bdr"."billing_decision_id" = "bd"."id") AND ("bd"."is_active" = true))))
@@ -405,6 +451,67 @@ CREATE OR REPLACE VIEW "public"."pending_billing_decisions_summary" AS
 
 
 ALTER VIEW "public"."pending_billing_decisions_summary" OWNER TO "postgres";
+
+
+COMMENT ON COLUMN "public"."pending_billing_decisions_summary"."facility_mapping_count" IS 'time_record_facility_workarea 對應筆數；>1 表示多組廠區／代號 mapping';
+
+
+
+CREATE TABLE IF NOT EXISTS "public"."pip_inspection_records" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "vendor_no" "text" NOT NULL,
+    "staff_id" "uuid",
+    "staff_name" "text" NOT NULL,
+    "inspection_datetime" timestamp with time zone NOT NULL,
+    "factory_location" "text" NOT NULL,
+    "work_content" "text" NOT NULL,
+    "location_tgcm" boolean DEFAULT false NOT NULL,
+    "location_io_room" boolean DEFAULT false NOT NULL,
+    "pip_no_phone" boolean DEFAULT false NOT NULL,
+    "pip_no_electronic" boolean DEFAULT false NOT NULL,
+    "pip_no_usb" boolean DEFAULT false NOT NULL,
+    "pip_checked_upper_pocket" boolean DEFAULT false NOT NULL,
+    "pip_checked_pants_pocket" boolean DEFAULT false NOT NULL,
+    "pip_checked_red_card" boolean DEFAULT false NOT NULL,
+    "pm_staff_id" "uuid",
+    "pm_confirmed_at" timestamp with time zone,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."pip_inspection_records" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."pip_inspection_records" IS '進廠 PIP 自我檢查紀錄（與工時／認領流程解耦）';
+
+
+
+COMMENT ON COLUMN "public"."pip_inspection_records"."vendor_no" IS '去除 V001 等讀卡前綴後之廠商編號（與 Excel 廠商編號一致）';
+
+
+
+COMMENT ON COLUMN "public"."pip_inspection_records"."staff_id" IS '對應 staff_profiles；查無人員時為 NULL';
+
+
+
+COMMENT ON COLUMN "public"."pip_inspection_records"."pip_no_phone" IS 'TRUE = 確認身上未攜帶私人手機（X）';
+
+
+
+COMMENT ON COLUMN "public"."pip_inspection_records"."pip_no_electronic" IS 'TRUE = 確認身上未攜帶電子設備（X）';
+
+
+
+COMMENT ON COLUMN "public"."pip_inspection_records"."pip_no_usb" IS 'TRUE = 確認身上未攜帶隨身碟（X）';
+
+
+
+COMMENT ON COLUMN "public"."pip_inspection_records"."pm_staff_id" IS '維護紀錄：指派 PM（暫留空）';
+
+
+
+COMMENT ON COLUMN "public"."pip_inspection_records"."pm_confirmed_at" IS '維護紀錄：PM 確認時間（暫留空）';
+
 
 
 CREATE TABLE IF NOT EXISTS "public"."project_rates" (
@@ -509,6 +616,11 @@ ALTER TABLE ONLY "public"."final_billings"
 
 ALTER TABLE ONLY "public"."final_billings"
     ADD CONSTRAINT "final_billings_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."pip_inspection_records"
+    ADD CONSTRAINT "pip_inspection_records_pkey" PRIMARY KEY ("id");
 
 
 
@@ -620,6 +732,14 @@ CREATE INDEX "idx_final_billings_status" ON "public"."final_billings" USING "btr
 
 
 
+CREATE INDEX "idx_pip_factory_created" ON "public"."pip_inspection_records" USING "btree" ("factory_location", "created_at" DESC);
+
+
+
+CREATE INDEX "idx_pip_vendor_no" ON "public"."pip_inspection_records" USING "btree" ("vendor_no");
+
+
+
 CREATE INDEX "idx_project_rates_project" ON "public"."project_rates" USING "btree" ("project_id");
 
 
@@ -637,6 +757,10 @@ CREATE INDEX "idx_projects_status" ON "public"."projects" USING "btree" ("status
 
 
 CREATE INDEX "idx_staff_profiles_email" ON "public"."staff_profiles" USING "btree" ("email");
+
+
+
+CREATE UNIQUE INDEX "idx_staff_profiles_employee_no" ON "public"."staff_profiles" USING "btree" ("employee_no") WHERE ("employee_no" IS NOT NULL);
 
 
 
@@ -753,6 +877,16 @@ ALTER TABLE ONLY "public"."final_billings"
 
 
 
+ALTER TABLE ONLY "public"."pip_inspection_records"
+    ADD CONSTRAINT "pip_inspection_records_pm_staff_id_fkey" FOREIGN KEY ("pm_staff_id") REFERENCES "public"."staff_profiles"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."pip_inspection_records"
+    ADD CONSTRAINT "pip_inspection_records_staff_id_fkey" FOREIGN KEY ("staff_id") REFERENCES "public"."staff_profiles"("id") ON DELETE SET NULL;
+
+
+
 ALTER TABLE ONLY "public"."project_rates"
     ADD CONSTRAINT "project_rates_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE CASCADE;
 
@@ -780,6 +914,13 @@ ALTER TABLE ONLY "public"."time_records"
 
 ALTER TABLE ONLY "public"."time_records"
     ADD CONSTRAINT "time_records_task_id_fkey" FOREIGN KEY ("task_id") REFERENCES "public"."tasks"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE "public"."pip_inspection_records" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "service_role bypass pip_inspection_records" ON "public"."pip_inspection_records" TO "service_role" USING (true) WITH CHECK (true);
 
 
 
@@ -814,6 +955,12 @@ GRANT ALL ON FUNCTION "public"."calculate_hours_worked"() TO "service_role";
 GRANT ALL ON FUNCTION "public"."create_billing_decision_transaction"("p_time_record_ids" "uuid"[], "p_decision_type" "text", "p_final_md" numeric, "p_recommended_md" numeric, "p_is_forced_md" boolean, "p_reason" "text", "p_decision_maker_id" "uuid", "p_has_conflict" boolean, "p_conflict_type" "text", "p_is_conflict_resolved" boolean, "p_conflict_resolution_notes" "text", "p_is_billable" boolean, "p_decision_ids_to_deactivate" "uuid"[], "p_task_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."create_billing_decision_transaction"("p_time_record_ids" "uuid"[], "p_decision_type" "text", "p_final_md" numeric, "p_recommended_md" numeric, "p_is_forced_md" boolean, "p_reason" "text", "p_decision_maker_id" "uuid", "p_has_conflict" boolean, "p_conflict_type" "text", "p_is_conflict_resolved" boolean, "p_conflict_resolution_notes" "text", "p_is_billable" boolean, "p_decision_ids_to_deactivate" "uuid"[], "p_task_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."create_billing_decision_transaction"("p_time_record_ids" "uuid"[], "p_decision_type" "text", "p_final_md" numeric, "p_recommended_md" numeric, "p_is_forced_md" boolean, "p_reason" "text", "p_decision_maker_id" "uuid", "p_has_conflict" boolean, "p_conflict_type" "text", "p_is_conflict_resolved" boolean, "p_conflict_resolution_notes" "text", "p_is_billable" boolean, "p_decision_ids_to_deactivate" "uuid"[], "p_task_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."pip_distinct_factory_locations"() TO "anon";
+GRANT ALL ON FUNCTION "public"."pip_distinct_factory_locations"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."pip_distinct_factory_locations"() TO "service_role";
 
 
 
@@ -880,6 +1027,12 @@ GRANT ALL ON TABLE "public"."final_billings" TO "service_role";
 GRANT ALL ON TABLE "public"."pending_billing_decisions_summary" TO "anon";
 GRANT ALL ON TABLE "public"."pending_billing_decisions_summary" TO "authenticated";
 GRANT ALL ON TABLE "public"."pending_billing_decisions_summary" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."pip_inspection_records" TO "anon";
+GRANT ALL ON TABLE "public"."pip_inspection_records" TO "authenticated";
+GRANT ALL ON TABLE "public"."pip_inspection_records" TO "service_role";
 
 
 
