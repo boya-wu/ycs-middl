@@ -18,6 +18,8 @@
 
 **原則：changelog 是功能的一部分，不是發版前才補的作業。**
 
+> **禁止**：在功能 commit 裡手動修改 `package.json` 的 `version` 欄位。版本號的變更必須由 `npm run version:bump` 腳本統一處理，否則會導致 release commit 重複 bump 或 tag 指向錯誤的版本。
+
 每次做完一個有意義的改動，切換到 **Agent mode** 貼下方的「完整流程 Prompt」，讓 AI 讀 `git diff` 後提案 commit 訊息與 `[Unreleased]` 描述，你確認後執行。
 
 `CHANGELOG.md` 的 `## [Unreleased]` 結果長這樣：

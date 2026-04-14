@@ -7,6 +7,7 @@
 - **唯一版本來源**：`package.json` 的 `version`
 - **版本策略**：SemVer + 測試版標記（`0.x.y-beta.z`）
 - **禁止**：多處硬編版本字串（UI/metadata 只能讀環境變數或 package.json 來源）
+- **嚴禁**：在功能 commit（`feat` / `fix` / `refactor` / `chore`）中手動修改 `package.json` 的 `version` 欄位。版本號變更只能由 `npm run version:bump` 腳本統一執行，否則 release commit 會重複 bump，導致 tag 指向錯誤版本。
 
 ## CHANGELOG（唯一資料來源）
 

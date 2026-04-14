@@ -24,6 +24,20 @@ if [[ -n "$(git status --porcelain)" ]]; then
   exit 1
 fi
 
+CURRENT_VERSION="$(node -p "require('./package.json').version")"
+if [[ "$CURRENT_VERSION" == *-* ]]; then
+  echo "WARNING: Current version '$CURRENT_VERSION' is a prerelease." >&2
+  echo "  'npm version $TYPE' will DROP the prerelease tag and produce a stable version." >&2
+  echo "  If this is intended (e.g. graduating beta to stable), continue." >&2
+  echo "  If you meant to bump only the prerelease suffix, use: npm version prerelease --no-git-tag-version" >&2
+  echo "" >&2
+  read -r -p "Continue? [y/N] " CONFIRM
+  if [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]]; then
+    echo "Aborted." >&2
+    exit 1
+  fi
+fi
+
 NEW_VERSION="$(npm version "$TYPE" --no-git-tag-version)"
 NEW_VERSION="${NEW_VERSION#v}"
 
