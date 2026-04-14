@@ -1,6 +1,6 @@
 # YCS
 
-## Clone 後：本機 Supabase（Docker）
+## 本機開發環境設定
 
 本機資料庫由 [Supabase CLI](https://supabase.com/docs/guides/cli) 透過 Docker 啟動，專案根目錄已含 `supabase/config.toml` 與 `supabase/migrations/`。
 
@@ -98,6 +98,38 @@ npm run supabase:reset
 
 一般情況下僅需 `npm run supabase:reset` 即可重建資料庫 schema。
 
-### 延伸閱讀
+---
+
+## 版本號與更新日誌
+
+- **版本號（SSOT）**：`package.json` 的 `version`
+- **網站更新內容**：瀏覽 `/changelog`（由 `CHANGELOG.md` 解析渲染）
+- **Dashboard 側欄**：底部「更新內容」連結會顯示目前版本號
+
+### 平常開發（AI 輔助流程）
+
+每次做完功能或修正，切換到 **Cursor Agent mode**，貼 [`docs/versioning-workflow.md`](docs/versioning-workflow.md) 中的「Prompt A」，讓 AI 讀 `git diff` 後：
+
+1. 提案繁體中文 Conventional Commits 格式的 commit 訊息
+2. 同步寫入 `CHANGELOG.md` 的 `[Unreleased]`
+3. 判斷本次是否建議發版（patch / minor / major）
+
+你確認措辭後，AI 統一執行 commit + push。
+
+### 發版
+
+若 AI 建議發版且你確認，AI 會接著執行：
+
+```bash
+npm run version:bump -- minor   # 或 patch / major
+git push --follow-tags
+```
+
+詳細 SOP 與 Prompt 模板見 [`docs/versioning-workflow.md`](docs/versioning-workflow.md)。
+
+---
+
+## 延伸閱讀
 
 - Supabase 工作流程（baseline、migration、簽章）：[`docs/supabase-workflow.md`](docs/supabase-workflow.md)
+- 版本號與更新日誌工作流程（發版 SOP、Changelog 怎麼寫）：[`docs/versioning-workflow.md`](docs/versioning-workflow.md)

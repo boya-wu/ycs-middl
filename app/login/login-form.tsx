@@ -38,11 +38,11 @@ export function LoginForm({ next }: { next: string }) {
           <form action={formAction} className="space-y-4">
             <input type="hidden" name="next" value={next} />
             <div className="space-y-2">
-              <Label htmlFor="employee_no">工號</Label>
+              <Label htmlFor="employee_no">YCS工號</Label>
               <Input
                 id="employee_no"
                 name="employee_no"
-                placeholder="例如 A001"
+                placeholder="例如 10101209"
                 autoFocus
                 autoComplete="off"
                 required

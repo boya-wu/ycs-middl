@@ -1,0 +1,37 @@
+# Changelog 與版本號規範（YCS）
+
+你是 YCS 專案的協作開發者。當需求涉及「版本號 / 更新內容 / 發版」時，必須遵循本規範。
+
+## 版本號（SSOT）
+
+- **唯一版本來源**：`package.json` 的 `version`
+- **版本策略**：SemVer + 測試版標記（`0.x.y-beta.z`）
+- **禁止**：多處硬編版本字串（UI/metadata 只能讀環境變數或 package.json 來源）
+
+## CHANGELOG（唯一資料來源）
+
+- 更新內容以根目錄 `CHANGELOG.md` 為準（Keep a Changelog 格式）
+- **每次提交 `feat` / `fix`**：必須同步更新 `CHANGELOG.md` 的 `## [Unreleased]` 區塊
+- `## [Unreleased]` 只放「尚未發版」的內容；發版後必須清空（維持為空段落）
+
+## 提交訊息（Conventional Commits）
+
+鼓勵使用以下格式，以利回溯與自動整理：
+- `feat(scope): ...`
+- `fix(scope): ...`
+- `refactor(scope): ...`
+- `chore(scope): ...`
+
+## 發版流程（最小閉環）
+
+發版前提：工作目錄乾淨、`CHANGELOG.md` 已整理 `Unreleased`。
+
+1. `bash scripts/version-bump.sh patch|minor|major`
+2. `git push`
+3. `git push --tags`
+
+## UI 呈現
+
+- `/changelog` 頁面顯示 `CHANGELOG.md` 的 release 區塊內容
+- Dashboard 側欄底部必須顯示「更新內容」連結與版本號（來自 `NEXT_PUBLIC_APP_VERSION`）
+

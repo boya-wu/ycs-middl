@@ -36,6 +36,7 @@ interface DashboardNavProps {
 
 export function DashboardNav({ sessionName, sessionEmployeeNo }: DashboardNavProps) {
   const pathname = usePathname();
+  const version = process.env.NEXT_PUBLIC_APP_VERSION ?? null;
 
   return (
     <nav
@@ -103,6 +104,18 @@ export function DashboardNav({ sessionName, sessionEmployeeNo }: DashboardNavPro
           </form>
         </div>
       )}
+
+      <div className="mt-4 border-t border-border pt-3">
+        <Link
+          href="/changelog"
+          className={cn(
+            'block rounded-md px-3 py-2 text-xs transition-colors',
+            'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+          )}
+        >
+          更新內容 {version ? `v${version}` : ''}
+        </Link>
+      </div>
     </nav>
   );
 }
