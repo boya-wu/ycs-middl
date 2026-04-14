@@ -145,6 +145,51 @@ export async function getDecidedBillingDecisions(): Promise<{
 }
 
 /**
+ * 依 task_id 查詢已認領工時明細
+ * 資料來源：decided_billing_decisions_summary View（is_active=TRUE 的有效認領）
+ */
+export async function getDecidedBillingDecisionsByTask(taskId: string): Promise<{
+  success: boolean;
+  data?: PendingBillingDecision[];
+  error?: string;
+}> {
+  unstable_noStore();
+  if (!taskId) return { success: false, error: '缺少 task_id' };
+
+  const supabase = createServerSupabaseClient();
+
+  try {
+    const { data, error } = await supabase
+      .from('decided_billing_decisions_summary')
+      .select('*')
+      .eq('task_id', taskId)
+      .order('record_date', { ascending: false })
+      .order('check_in_time', { ascending: false })
+      .range(0, 1999);
+
+    if (error) {
+      throw new Error(`查詢任務已認領明細失敗: ${error.message}`);
+    }
+
+    const list = (data || []) as PendingBillingDecision[];
+    const seen = new Set<string>();
+    const deduped = list.filter((row) => {
+      if (seen.has(row.time_record_id)) return false;
+      seen.add(row.time_record_id);
+      return true;
+    });
+
+    return { success: true, data: deduped };
+  } catch (error) {
+    console.error('getDecidedBillingDecisionsByTask 錯誤:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : '未知錯誤',
+    };
+  }
+}
+
+/**
  * 查詢可認領的任務列表（含專案資訊）
  */
 export async function getClaimableTasks(): Promise<{

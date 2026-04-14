@@ -165,7 +165,7 @@ export function DecisionTable({
             {renderSortableHead('廠商姓名', 'staff_name')}
             {renderSortableHead('工作區域代號', 'work_area_code')}
             {renderSortableHead('日期', 'record_date')}
-            {renderSortableHead('任務', 'task')}
+            {renderSortableHead('SR', 'task')}
             {renderSortableHead('時數', 'hours_worked')}
             {renderSortableHead('MD', 'md')}
             {(viewMode === 'after' || viewMode === 'summary') && (

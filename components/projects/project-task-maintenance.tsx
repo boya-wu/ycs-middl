@@ -8,6 +8,7 @@ import {
   Pencil,
   ChevronRight,
   FolderOpen,
+  ClipboardList,
 } from 'lucide-react';
 
 import {
@@ -39,6 +40,8 @@ import {
   createTask,
   updateTask,
 } from '@/actions/projects/maintenance';
+import type { PendingBillingDecision } from '@/actions/billing/queries';
+import { getDecidedBillingDecisionsByTask } from '@/actions/billing/queries';
 
 // ---------------------------------------------------------------------------
 // 狀態標籤
@@ -94,6 +97,9 @@ export function ProjectTaskMaintenance({ initialProjects }: ProjectTaskMaintenan
 
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<TaskRow | null>(null);
+
+  // 已認領明細 Dialog 狀態
+  const [claimedDetailTask, setClaimedDetailTask] = useState<TaskRow | null>(null);
 
   /** 另一瀏覽器／分頁已變更資料時，此實例的 RSC payload 仍為舊的；在回到此分頁或視窗時 refetch */
   useEffect(() => {
@@ -302,9 +308,19 @@ export function ProjectTaskMaintenance({ initialProjects }: ProjectTaskMaintenan
                     </TableCell>
                     <TableCell><StatusBadge status={t.status} /></TableCell>
                     <TableCell className="px-2">
-                      <Button variant="ghost" size="icon" onClick={() => openEditTask(t)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="已認領明細"
+                          onClick={() => setClaimedDetailTask(t)}
+                        >
+                          <ClipboardList className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => openEditTask(t)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -329,6 +345,10 @@ export function ProjectTaskMaintenance({ initialProjects }: ProjectTaskMaintenan
           projectCode={selectedProject.code}
         />
       )}
+      <ClaimedDetailDialog
+        task={claimedDetailTask}
+        onOpenChange={(open) => { if (!open) setClaimedDetailTask(null); }}
+      />
     </div>
   );
 }
@@ -538,6 +558,160 @@ function TaskDialog({
           <Button onClick={handleSubmit} disabled={isPending || !code.trim() || !name.trim()}>
             {isPending ? '處理中…' : isEdit ? '儲存' : '新增'}
           </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 已認領明細 Dialog
+// ---------------------------------------------------------------------------
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+function formatDt(value: string | null | undefined, fmt: 'date' | 'datetime'): string {
+  if (!value) return '-';
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return '-';
+  const date = `${d.getFullYear()}/${pad2(d.getMonth() + 1)}/${pad2(d.getDate())}`;
+  if (fmt === 'date') return date;
+  return `${date} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+function ClaimedDetailDialog({
+  task,
+  onOpenChange,
+}: {
+  task: TaskRow | null;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [records, setRecords] = useState<PendingBillingDecision[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const open = task !== null;
+
+  useEffect(() => {
+    if (!task) return;
+    setLoading(true);
+    setErrorMsg(null);
+    setRecords([]);
+    getDecidedBillingDecisionsByTask(task.id).then((res) => {
+      setLoading(false);
+      if (!res.success) {
+        setErrorMsg(res.error ?? '載入失敗');
+        toast.error(res.error ?? '載入已認領明細失敗');
+        return;
+      }
+      setRecords(res.data ?? []);
+    });
+  }, [task?.id]);
+
+  const totalHours = records.reduce((s, r) => s + (r.hours_worked || 0), 0);
+  const totalMd = records.reduce((s, r) => s + (r.final_md || 0), 0);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[900px] max-h-[80vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle>
+            已認領明細 — {task?.code ?? ''} {task?.name ?? ''}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-auto space-y-4 py-2">
+          {/* 摘要卡片 */}
+          {!loading && !errorMsg && (
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-lg border bg-muted/40 p-3 text-center">
+                <p className="text-xs text-muted-foreground">已認領筆數</p>
+                <p className="mt-1 text-xl font-semibold font-mono">{records.length}</p>
+              </div>
+              <div className="rounded-lg border bg-muted/40 p-3 text-center">
+                <p className="text-xs text-muted-foreground">累計時數</p>
+                <p className="mt-1 text-xl font-semibold font-mono">{totalHours.toFixed(2)} h</p>
+              </div>
+              <div className="rounded-lg border bg-muted/40 p-3 text-center">
+                <p className="text-xs text-muted-foreground">累計 MD</p>
+                <p className="mt-1 text-xl font-semibold font-mono">{totalMd.toFixed(2)}</p>
+              </div>
+            </div>
+          )}
+
+          {loading && (
+            <div className="flex justify-center py-12 text-muted-foreground text-sm">
+              載入中…
+            </div>
+          )}
+
+          {!loading && errorMsg && (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+              {errorMsg}
+            </div>
+          )}
+
+          {!loading && !errorMsg && records.length === 0 && (
+            <div className="py-12 text-center text-muted-foreground text-sm">
+              此任務目前尚無已認領工時紀錄
+            </div>
+          )}
+
+          {!loading && !errorMsg && records.length > 0 && (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-28">日期</TableHead>
+                    <TableHead className="w-36">入場時間</TableHead>
+                    <TableHead className="w-36">出場時間</TableHead>
+                    <TableHead className="w-36">所屬廠區</TableHead>
+                    <TableHead className="w-36">部門名稱</TableHead>
+                    <TableHead>廠商姓名</TableHead>
+                    <TableHead className="w-20 text-right">時數</TableHead>
+                    <TableHead className="w-16 text-right">MD</TableHead>
+                    <TableHead>認領人員</TableHead>
+                    <TableHead>認領原因</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {records.map((r) => (
+                    <TableRow key={r.time_record_id}>
+                      <TableCell className="font-mono text-sm">
+                        {formatDt(r.record_date, 'date')}
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">
+                        {formatDt(r.check_in_time, 'datetime')}
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">
+                        {formatDt(r.check_out_time, 'datetime')}
+                      </TableCell>
+                      <TableCell className="text-sm">{r.factory_location ?? '-'}</TableCell>
+                      <TableCell className="text-sm">{r.department_name ?? '-'}</TableCell>
+                      <TableCell>{r.staff_name ?? '-'}</TableCell>
+                      <TableCell className="text-right font-mono text-sm">
+                        {r.hours_worked?.toFixed(2) ?? '-'}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-sm">
+                        {r.final_md != null ? r.final_md.toFixed(1) : '-'}
+                      </TableCell>
+                      <TableCell>{r.decision_maker_name ?? '-'}</TableCell>
+                      <TableCell
+                        className="max-w-[200px] truncate text-sm text-muted-foreground"
+                        title={r.reason ?? undefined}
+                      >
+                        {r.reason ?? '-'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>關閉</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
