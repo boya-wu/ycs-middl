@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { IMPORT_MIN_DURATION_MINUTES } from '@/lib/import-duration';
 
 /** 單筆匯入用 payload，task_id 匯入時一律不寫入（公海池） */
 export interface ImportTimeRecord {
@@ -53,7 +54,7 @@ function buildLogicalLookupKey(
 
 /**
  * 匯入時數紀錄（批量三階段寫入）
- * - 潔癖：duration < 5 分鐘或缺出場時間的列不寫入，計入 skipped
+ * - 潔癖（可關閉）：當 IMPORT_MIN_DURATION_MINUTES > 0 時，duration 低於該分鐘數或缺出場時間的列不寫入，計入 skipped
  * - 防重：依 uniq_time_records_logical_key 衝突則跳過 time_records 寫入，但仍補寫 mapping 配對
  * - mapping：每筆 canonical time_record 的（廠區, 工作區代號）配對寫入 time_record_facility_workarea
  * - 公海池：匯入時 task_id 一律為 null
@@ -86,7 +87,7 @@ export async function importTimeRecords(
   let skippedNoCheckOut = 0;
 
   try {
-    // 1) 潔癖 + 認領看板可見：僅寫入「有出場時間」且 duration >= 5 分鐘的列（task_id 強制 null）
+    // 1) 潔癖（閾值見 lib/import-duration）+ 認領看板可見：寫入「有出場時間」的列；若閾值 > 0 則另需達最短時長（task_id 強制 null）
     //    缺出場時間的列不寫入，否則認領看板 View（pending_billing_decisions_summary）不會顯示
     const toInsert: Array<{
       staff_id: string;
@@ -109,7 +110,10 @@ export async function importTimeRecords(
       const checkIn = new Date(record.check_in_time);
       const checkOut = new Date(record.check_out_time);
       const durationMinutes = (checkOut.getTime() - checkIn.getTime()) / (1000 * 60);
-      if (durationMinutes < 5) {
+      if (
+        IMPORT_MIN_DURATION_MINUTES > 0 &&
+        durationMinutes < IMPORT_MIN_DURATION_MINUTES
+      ) {
         skippedDuration++;
         continue;
       }

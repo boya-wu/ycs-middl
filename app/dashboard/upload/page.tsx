@@ -19,6 +19,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { getAllStaffProfiles } from '@/actions/upload/queries';
 import { importTimeRecords, ImportTimeRecord } from '@/actions/upload/import';
+import { IMPORT_MIN_DURATION_MINUTES } from '@/lib/import-duration';
 import {
   createStaffProfile,
   ensureStaffProfileFromAuthUser,
@@ -981,7 +982,12 @@ export default function UploadPage() {
       if (!checkOut) return;
       const durationMinutes =
         (new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 60);
-      if (durationMinutes < 5) return;
+      if (
+        IMPORT_MIN_DURATION_MINUTES > 0 &&
+        durationMinutes < IMPORT_MIN_DURATION_MINUTES
+      ) {
+        return;
+      }
       const key = `${row.matchedStaffId}|${recordDate}|${checkIn}|${checkOut}`;
       const arr = keyToIndices.get(key) ?? [];
       arr.push(index);
@@ -1103,7 +1109,9 @@ export default function UploadPage() {
 
       const skipParts: string[] = [];
       if ((skippedNoCheckOut ?? 0) > 0) skipParts.push(`缺出場時間 ${skippedNoCheckOut} 筆`);
-      if ((skippedDuration ?? 0) > 0) skipParts.push(`時長<5分 ${skippedDuration} 筆`);
+      if ((skippedDuration ?? 0) > 0) {
+        skipParts.push(`時長<${IMPORT_MIN_DURATION_MINUTES}分 ${skippedDuration} 筆`);
+      }
       const mergeCount = mergedAsExtraFacilities ?? 0;
       const mergeMsg =
         mergeCount > 0 ? `，跨廠區併入同一邏輯工時 ${mergeCount} 列（已寫入多組廠區／代號）` : '';
