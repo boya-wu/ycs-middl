@@ -142,7 +142,24 @@ chore(release): v0.5.0-beta.1   ← 上一次 release commit
 1. 讀 git diff（staged 與 unstaged）了解本次改動內容
 2. 提案：繁體中文 Conventional Commits 格式的 commit 訊息（feat/fix/refactor/chore）
 3. 提案：對應的 CHANGELOG.md [Unreleased] 描述（使用者語言，非技術細節）
-4. 判斷：根據本次 commit 類型，建議「直接 push」或「發版（patch/minor/major）」，並說明理由
+4. 判斷版本 bump 類型，依以下規則決定，並在最後一行說明「建議 patch/minor/major，因為本次包含 XXX」：
+
+   **patch**（只動第三位，例如 0.5.0 → 0.5.1）：
+   - 只有 bug 修正（fix）、文案/翻譯調整、UI 細節微修
+   - 不增加任何新功能、不改變現有行為或 API
+
+   **minor**（只動第二位，例如 0.5.0 → 0.6.0）：
+   - 新增可見功能、新增頁面/元件、新增 API 欄位（但保持向下相容）
+   - 既有行為有意調整（改了 UX 流程、更換技術方案但用戶感知到）
+
+   **major**（動第一位，例如 0.5.0 → 1.0.0）：
+   - 移除或重命名功能/API（破壞性改動）
+   - 資料結構不相容（舊資料/流程需要手動遷移）
+   - 目前版本在 0.x，**通常不升 major，除非我確認**
+
+   **直接 push（不發版）**：
+   - 只有 chore、docs、refactor（不改行為）、style 類改動
+   - Unreleased 描述項目少，尚未累積到值得發版的量
 5. 等我確認措辭後再執行
 6. 執行順序：git add → git commit → 更新 CHANGELOG.md → git push
 7. 若建議發版且我確認，接著執行：npm run version:bump -- <type> → git push --follow-tags
